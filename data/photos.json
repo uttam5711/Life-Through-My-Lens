@@ -1,5 +1,20 @@
 [
   {
+    "id": "photo-1790138883703",
+    "title": "Chatgpt Image Sep 10, 2026, 04 27 57 Pm",
+    "category": "Random Clicks",
+    "url": "images/ChatGPT Image Sep 10, 2026, 04_27_57 PM.png",
+    "thumbnail": "images/ChatGPT Image Sep 10, 2026, 04_27_57 PM.png",
+    "date": "2026-09-23",
+    "description": "",
+    "location": "",
+    "camera": "",
+    "tags": [
+      "photo",
+      "click"
+    ]
+  },
+  {
     "id": "photo-1",
     "title": "Golden Hour Reflection",
     "category": "Random Clicks",
@@ -9,7 +24,12 @@
     "description": "A calm evening catching the sun dip below the horizon with stunning valley reflections.",
     "location": "Mountain Ridge",
     "camera": "35mm • f/1.8",
-    "tags": ["sunset", "nature", "reflection", "random"]
+    "tags": [
+      "sunset",
+      "nature",
+      "reflection",
+      "random"
+    ]
   },
   {
     "id": "photo-2",
@@ -21,7 +41,12 @@
     "description": "Late night wander in downtown after a sudden rain shower.",
     "location": "City Centre",
     "camera": "50mm • f/1.4",
-    "tags": ["street", "night", "neon", "rain"]
+    "tags": [
+      "street",
+      "night",
+      "neon",
+      "rain"
+    ]
   },
   {
     "id": "photo-3",
@@ -33,7 +58,12 @@
     "description": "Quiet morning moments at the corner cafe planning the week ahead.",
     "location": "Local Roastery",
     "camera": "iPhone 15 Pro",
-    "tags": ["coffee", "personal", "morning", "journal"]
+    "tags": [
+      "coffee",
+      "personal",
+      "morning",
+      "journal"
+    ]
   },
   {
     "id": "photo-4",
@@ -45,7 +75,12 @@
     "description": "Early morning hike surrounded by pine scents and drifting fog.",
     "location": "Highland Trail",
     "camera": "24mm • f/2.8",
-    "tags": ["forest", "trees", "mist", "hiking"]
+    "tags": [
+      "forest",
+      "trees",
+      "mist",
+      "hiking"
+    ]
   },
   {
     "id": "photo-5",
@@ -57,7 +92,12 @@
     "description": "Spotted this little fellow taking a warm afternoon nap on stone steps.",
     "location": "Old Town Alley",
     "camera": "Phone Portrait Mode",
-    "tags": ["cat", "cute", "random", "sunlight"]
+    "tags": [
+      "cat",
+      "cute",
+      "random",
+      "sunlight"
+    ]
   },
   {
     "id": "photo-6",
@@ -69,7 +109,12 @@
     "description": "Packing bags, rolling down windows, and hitting the open road with friends.",
     "location": "Coastal Highway",
     "camera": "Sony A7C",
-    "tags": ["roadtrip", "friends", "summer", "personal"]
+    "tags": [
+      "roadtrip",
+      "friends",
+      "summer",
+      "personal"
+    ]
   },
   {
     "id": "photo-7",
@@ -81,7 +126,12 @@
     "description": "Strong geometric patterns and modern glass reflections in the financial district.",
     "location": "Metropolis Tower",
     "camera": "16mm • f/8",
-    "tags": ["architecture", "lines", "skyline", "modern"]
+    "tags": [
+      "architecture",
+      "lines",
+      "skyline",
+      "modern"
+    ]
   },
   {
     "id": "photo-8",
@@ -93,6 +143,11 @@
     "description": "Warm campfire embers, roasted marshmallows, and endless conversations under a starry sky.",
     "location": "Lakeside Camp",
     "camera": "35mm • f/1.4",
-    "tags": ["camping", "night", "fire", "memories"]
+    "tags": [
+      "camping",
+      "night",
+      "fire",
+      "memories"
+    ]
   }
 ]
