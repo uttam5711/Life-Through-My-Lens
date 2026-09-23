@@ -62,8 +62,8 @@
           </svg>
         </button>
 
-        <!-- Upload Button -->
-        <button id="open-upload-btn" class="primary-btn upload-cta">
+        <!-- Upload Button (Only shown in admin/owner mode) -->
+        <button id="open-upload-btn" class="primary-btn upload-cta admin-only" hidden>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -156,7 +156,7 @@
           </svg>
         </div>
         <h3 class="empty-title">No pictures found</h3>
-        <p class="empty-description">Try adjusting your search or category filter, or upload your first photo.</p>
+        <p class="empty-description">Try adjusting your search or category filter.</p>
         <button id="empty-reset-btn" class="secondary-btn">Reset Filters</button>
       </div>
     </section>
@@ -172,7 +172,7 @@
       </div>
       <div class="footer-links">
         <a href="#category-pills" class="footer-link">Back to Top ↑</a>
-        <button id="footer-upload-btn" class="footer-link-btn">Upload a Photo</button>
+        <button id="footer-upload-btn" class="footer-link-btn admin-only" hidden>Upload a Photo</button>
       </div>
     </div>
   </footer>

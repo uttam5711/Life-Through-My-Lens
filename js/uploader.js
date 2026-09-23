@@ -65,9 +65,38 @@ const guideUnderstoodBtn = document.getElementById('guide-understood-btn');
 let currentProcessedImage = null; // { file, base64, blob, filename, width, height, sizeKb }
 
 /**
+ * Admin / Owner access control
+ * Visitors see only photos. Upload controls are hidden unless ?admin is accessed.
+ */
+function checkAdminAccess() {
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  if (urlParams.get('admin') === 'logout' || urlParams.get('admin') === 'false') {
+    localStorage.removeItem('gallery_admin_mode');
+  } else if (urlParams.has('admin')) {
+    localStorage.setItem('gallery_admin_mode', 'true');
+  }
+
+  const isAdmin = localStorage.getItem('gallery_admin_mode') === 'true';
+
+  if (isAdmin) {
+    document.body.classList.add('admin-mode');
+    if (openUploadBtn) openUploadBtn.hidden = false;
+    if (footerUploadBtn) footerUploadBtn.hidden = false;
+  } else {
+    document.body.classList.remove('admin-mode');
+    if (openUploadBtn) openUploadBtn.hidden = true;
+    if (footerUploadBtn) footerUploadBtn.hidden = true;
+  }
+
+  return isAdmin;
+}
+
+/**
  * Initialize Uploader
  */
 export function initUploader() {
+  checkAdminAccess();
   loadSavedGithubSettings();
   setupUploaderEvents();
   setDefaultDate();
@@ -77,8 +106,8 @@ export function initUploader() {
  * Load saved GitHub configurations from localStorage
  */
 function loadSavedGithubSettings() {
-  if (ghOwnerInput) ghOwnerInput.value = localStorage.getItem('gh_gallery_owner') || '';
-  if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gh_gallery_repo') || '';
+  if (ghOwnerInput) ghOwnerInput.value = localStorage.getItem('gh_gallery_owner') || 'uttam5711';
+  if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gh_gallery_repo') || 'Life-Through-My-Lens';
   if (ghBranchInput) ghBranchInput.value = localStorage.getItem('gh_gallery_branch') || 'main';
   if (ghTokenInput) ghTokenInput.value = localStorage.getItem('gh_gallery_token') || '';
 }
@@ -101,9 +130,21 @@ function setDefaultDate() {
  * Setup Event Listeners
  */
 function setupUploaderEvents() {
-  // Modal open
-  if (openUploadBtn) openUploadBtn.addEventListener('click', () => openModal(uploadDialog));
-  if (footerUploadBtn) footerUploadBtn.addEventListener('click', () => openModal(uploadDialog));
+  // Modal open (Admin only)
+  if (openUploadBtn) {
+    openUploadBtn.addEventListener('click', () => {
+      if (localStorage.getItem('gallery_admin_mode') === 'true') {
+        openModal(uploadDialog);
+      }
+    });
+  }
+  if (footerUploadBtn) {
+    footerUploadBtn.addEventListener('click', () => {
+      if (localStorage.getItem('gallery_admin_mode') === 'true') {
+        openModal(uploadDialog);
+      }
+    });
+  }
 
   // Modal close
   if (closeUploadBtn) closeUploadBtn.addEventListener('click', () => closeModal(uploadDialog));

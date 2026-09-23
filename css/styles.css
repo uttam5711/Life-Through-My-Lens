@@ -1361,3 +1361,20 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ==========================================================
+   ADMIN / OWNER VISIBILITY RULES
+   Normal visitors see only photos. Upload controls are hidden.
+   ========================================================== */
+.admin-only[hidden] {
+  display: none !important;
+}
+
+body:not(.admin-mode) .admin-only {
+  display: none !important;
+}
+
+body.admin-mode .admin-only:not([hidden]) {
+  display: inline-flex !important;
+}
+

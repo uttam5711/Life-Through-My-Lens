@@ -325,7 +325,7 @@ function closeLightbox() {
   } else {
     lightboxDialog.removeAttribute('open');
   }
-  history.replaceState(null, '', window.location.pathname);
+  history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
 function toggleZoom() {
