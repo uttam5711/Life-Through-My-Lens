@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A personal photo gallery of random clicks, memories, street scenes, and personal moments.">
+  <title>Moments & Clicks • Personal Photo Gallery</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Background decorative glows -->
+  <div class="glow-bg glow-1" aria-hidden="true"></div>
+  <div class="glow-bg glow-2" aria-hidden="true"></div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-container">
+      <div class="brand">
+        <a href="#" class="brand-link">
+          <div class="brand-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1 class="site-title">Moments & Clicks</h1>
+            <p class="site-subtitle">Random captures, personal memories & stories</p>
+          </div>
+        </a>
+      </div>
+
+      <div class="header-actions">
+        <!-- Live photo counter badge -->
+        <div class="counter-badge" id="photo-counter">
+          <span class="pulse-dot"></span>
+          <span id="counter-text">Loading photos...</span>
+        </div>
+
+        <!-- Dark/Light Theme Toggle -->
+        <button id="theme-toggle" class="icon-btn" title="Toggle dark/light theme" aria-label="Toggle theme">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+
+        <!-- Upload Button -->
+        <button id="open-upload-btn" class="primary-btn upload-cta">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Upload Photo</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="main-wrapper">
+
+    <!-- Hero / Intro Banner -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <h2 class="hero-heading">A collection of moments frozen in time</h2>
+        <p class="hero-subtext">Exploring life through unfiltered snapshots, candid memories, and quiet random observations.</p>
+      </div>
+    </section>
+
+    <!-- Filter & Toolbar Controls -->
+    <section class="toolbar-section">
+      <div class="toolbar-container">
+        
+        <!-- Category Navigation Pills -->
+        <div class="category-pills-wrapper" id="category-pills">
+          <button class="pill active" data-category="all">All Photos</button>
+          <!-- Dynamic category pills injected via JS -->
+        </div>
+
+        <!-- Search and Sort Controls -->
+        <div class="controls-right">
+          <!-- Search box -->
+          <div class="search-box">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" placeholder="Search title, tag, camera..." aria-label="Search photos">
+            <button id="clear-search-btn" class="clear-search-btn" title="Clear search" aria-label="Clear search" hidden>&times;</button>
+          </div>
+
+          <!-- Sort Dropdown -->
+          <div class="sort-selector">
+            <select id="sort-select" aria-label="Sort photos">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="title">Alphabetical</option>
+            </select>
+          </div>
+
+          <!-- Grid Layout Toggle -->
+          <div class="layout-toggle" role="group" aria-label="Grid layout toggle">
+            <button id="view-masonry" class="layout-btn active" title="Masonry View">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="9"></rect>
+                <rect x="14" y="3" width="7" height="5"></rect>
+                <rect x="14" y="12" width="7" height="9"></rect>
+                <rect x="3" y="16" width="7" height="5"></rect>
+              </svg>
+            </button>
+            <button id="view-grid" class="layout-btn" title="Uniform Grid View">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Photo Gallery Container -->
+    <section class="gallery-section">
+      <div id="gallery-container" class="gallery-grid masonry-view">
+        <!-- Photo cards rendered dynamically via JS -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state" hidden>
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h3 class="empty-title">No pictures found</h3>
+        <p class="empty-description">Try adjusting your search or category filter, or upload your first photo.</p>
+        <button id="empty-reset-btn" class="secondary-btn">Reset Filters</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-container">
+      <div class="footer-info">
+        <p class="copyright">© <span id="current-year">2026</span> Moments & Clicks. Hosted with ❤️ on <a href="https://pages.github.com/" target="_blank" rel="noopener">GitHub Pages</a>.</p>
+        <p class="footer-hint">Feel free to explore, zoom in, and share photos.</p>
+      </div>
+      <div class="footer-links">
+        <a href="#category-pills" class="footer-link">Back to Top ↑</a>
+        <button id="footer-upload-btn" class="footer-link-btn">Upload a Photo</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================
+       MODAL 1: LIGHTBOX VIEWER (<dialog>)
+       ======================================================== -->
+  <dialog id="lightbox-dialog" class="lightbox-modal">
+    <div class="lightbox-overlay" id="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      
+      <!-- Top Bar: Counter & Controls -->
+      <div class="lightbox-topbar">
+        <div class="lightbox-index-badge">
+          <span id="lb-current-index">1</span> / <span id="lb-total-count">8</span>
+        </div>
+        <div class="lightbox-top-actions">
+          <button id="lb-zoom-btn" class="lb-btn" title="Toggle zoom">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+          </button>
+          <button id="lb-download-btn" class="lb-btn" title="Download photo">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+          <button id="lb-share-btn" class="lb-btn" title="Copy photo link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+          </button>
+          <button id="lb-close-btn" class="lb-btn lb-close-btn" title="Close (Esc)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Stage -->
+      <div class="lightbox-stage">
+        <!-- Navigation Prev -->
+        <button id="lb-prev-btn" class="lb-nav-btn lb-prev" aria-label="Previous photo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+
+        <!-- Image Container -->
+        <div class="lightbox-img-wrapper" id="lb-img-wrapper">
+          <img id="lb-image" src="" alt="Full size preview" class="lightbox-image">
+          <div class="lb-spinner" id="lb-spinner" hidden></div>
+        </div>
+
+        <!-- Navigation Next -->
+        <button id="lb-next-btn" class="lb-nav-btn lb-next" aria-label="Next photo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Bottom Details Drawer -->
+      <div class="lightbox-details">
+        <div class="lb-meta-left">
+          <span id="lb-category" class="category-badge">Category</span>
+          <h2 id="lb-title" class="lb-photo-title">Photo Title</h2>
+          <p id="lb-desc" class="lb-photo-desc">Photo description goes here...</p>
+        </div>
+        <div class="lb-meta-right">
+          <div class="meta-row" id="lb-date-row">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span id="lb-date">Date</span>
+          </div>
+          <div class="meta-row" id="lb-location-row">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            <span id="lb-location">Location</span>
+          </div>
+          <div class="meta-row" id="lb-camera-row">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            <span id="lb-camera">Camera Info</span>
+          </div>
+          <div class="lb-tags" id="lb-tags">
+            <!-- Dynamic tags -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </dialog>
+
+  <!-- ========================================================
+       MODAL 2: UPLOAD STUDIO (<dialog>)
+       ======================================================== -->
+  <dialog id="upload-dialog" class="upload-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 class="modal-title">Upload Photo</h3>
+            <p class="modal-subtitle">Add a new moment to your gallery</p>
+          </div>
+        </div>
+        <button id="close-upload-btn" class="close-btn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- Upload Method Tabs -->
+      <div class="upload-tabs">
+        <button class="tab-btn active" data-tab="github-tab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          Direct GitHub Upload
+        </button>
+        <button class="tab-btn" data-tab="local-tab">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Local / Manual Export
+        </button>
+      </div>
+
+      <div class="modal-body">
+        
+        <!-- Image Dropzone & File Input -->
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="image/*" class="file-input-hidden">
+          <div class="dropzone-empty" id="dropzone-empty">
+            <div class="dropzone-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <p class="dropzone-prompt"><strong>Click to browse</strong> or drag & drop a photo here</p>
+            <p class="dropzone-hint">PNG, JPG, WebP, GIF • Auto-compressed for rapid loading</p>
+          </div>
+          
+          <div class="dropzone-preview" id="dropzone-preview" hidden>
+            <img id="preview-img" src="" alt="Selected preview">
+            <div class="preview-overlay">
+              <span id="preview-info" class="preview-info">1200 x 800 • 240 KB</span>
+              <button type="button" id="remove-file-btn" class="remove-btn">Change Photo</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metadata Form -->
+        <form id="upload-form" class="upload-form">
+          
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="photo-title">Title <span class="required">*</span></label>
+              <input type="text" id="photo-title" placeholder="e.g. Sunset over the rooftop" required>
+            </div>
+            
+            <div class="form-group flex-1">
+              <label for="photo-category">Category <span class="required">*</span></label>
+              <select id="photo-category" required>
+                <option value="Random Clicks">Random Clicks</option>
+                <option value="Personal & Moments">Personal & Moments</option>
+                <option value="Street & City">Street & City</option>
+                <option value="Nature & Outdoors">Nature & Outdoors</option>
+                <option value="Portraits">Portraits</option>
+                <option value="__custom__">+ Add Custom Category...</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="custom-category-group" hidden>
+            <label for="custom-category-input">New Category Name</label>
+            <input type="text" id="custom-category-input" placeholder="e.g. Travel 2026">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="photo-date">Date Taken</label>
+              <input type="date" id="photo-date">
+            </div>
+            <div class="form-group flex-1">
+              <label for="photo-location">Location / Place</label>
+              <input type="text" id="photo-location" placeholder="e.g. Downtown Cafe, Home">
+            </div>
+            <div class="form-group flex-1">
+              <label for="photo-camera">Device / Camera</label>
+              <input type="text" id="photo-camera" placeholder="e.g. iPhone, Sony, Pixel">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="photo-desc">Caption / Story</label>
+            <textarea id="photo-desc" rows="2" placeholder="Write a short story or memory about this picture..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="photo-tags">Tags (comma-separated)</label>
+            <input type="text" id="photo-tags" placeholder="e.g. random, evening, memories, sky">
+          </div>
+
+          <!-- TAB 1: GITHUB DIRECT SETTINGS -->
+          <div id="github-tab-content" class="tab-content active">
+            <div class="github-settings-box">
+              <div class="github-box-header">
+                <strong>GitHub Direct Sync Configuration</strong>
+                <a href="#github-token-guide" id="token-help-link" class="help-link">How to get a free Token?</a>
+              </div>
+              <p class="settings-hint">Your token stays safely in your own browser's localStorage. It directly commits images and updates your site on GitHub!</p>
+              
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="gh-owner">GitHub Username <span class="required">*</span></label>
+                  <input type="text" id="gh-owner" placeholder="e.g. uttamsangani">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="gh-repo">Repository Name <span class="required">*</span></label>
+                  <input type="text" id="gh-repo" placeholder="e.g. personal-photo-gallery">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="gh-branch">Branch</label>
+                  <input type="text" id="gh-branch" value="main">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="gh-token">GitHub Personal Access Token (PAT) <span class="required">*</span></label>
+                <div class="token-input-wrapper">
+                  <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                  <button type="button" id="toggle-token-visibility" class="toggle-vis-btn">Show</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Progress / Status -->
+            <div id="upload-status" class="upload-status" hidden>
+              <div class="status-spinner"></div>
+              <span id="upload-status-msg">Compressing photo & uploading to GitHub...</span>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" id="cancel-upload-btn" class="secondary-btn">Cancel</button>
+              <button type="submit" id="github-submit-btn" class="primary-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Publish Photo to GitHub
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 2: LOCAL / MANUAL EXPORT -->
+          <div id="local-tab-content" class="tab-content" hidden>
+            <div class="local-export-box">
+              <p>Prefer managing files on your computer with Git? This tab will download your compressed photo and provide the updated <code>data/photos.json</code> to save into your project folder.</p>
+              
+              <div class="export-actions">
+                <button type="button" id="download-photo-file-btn" class="secondary-btn" disabled>
+                  1. Download Compressed Photo
+                </button>
+                <button type="button" id="download-json-file-btn" class="secondary-btn" disabled>
+                  2. Download Updated photos.json
+                </button>
+              </div>
+
+              <div class="code-preview-group">
+                <label>Generated JSON entry for <code>data/photos.json</code>:</label>
+                <pre><code id="json-snippet-preview">// Fill form above and pick an image to preview JSON entry</code></pre>
+                <button type="button" id="copy-json-btn" class="copy-btn">Copy JSON</button>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" id="close-local-btn" class="secondary-btn">Done</button>
+            </div>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ========================================================
+       MODAL 3: GITHUB TOKEN GUIDE HELP (<dialog>)
+       ======================================================== -->
+  <dialog id="token-guide-dialog" class="guide-modal">
+    <div class="modal-card token-card">
+      <div class="modal-header">
+        <h3 class="modal-title">How to get a Free GitHub Token</h3>
+        <button id="close-token-guide-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body guide-body">
+        <ol class="guide-steps">
+          <li>Log into your <strong>GitHub</strong> account in your browser.</li>
+          <li>Click your profile picture in the top right &rarr; <strong>Settings</strong>.</li>
+          <li>Scroll down on the left sidebar and click <strong>Developer Settings</strong> (at the bottom).</li>
+          <li>Click <strong>Personal access tokens</strong> &rarr; <strong>Tokens (classic)</strong>.</li>
+          <li>Click <strong>Generate new token</strong> &rarr; <strong>Generate new token (classic)</strong>.</li>
+          <li>Give it a Note (e.g. <code>Photo Gallery Uploader</code>), set Expiration to 90 days or No expiration, and check the <strong><code>repo</code></strong> checkbox (Full control of private repositories / code).</li>
+          <li>Click <strong>Generate token</strong> at the bottom. Copy the token (starts with <code>ghp_...</code>) and paste it into the Upload Studio!</li>
+        </ol>
+        <div class="guide-note">
+          <strong>Privacy note:</strong> The token is saved only in your own computer/phone's browser <code>localStorage</code>. No external server ever sees or stores your token.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="guide-understood-btn" class="primary-btn">Got It!</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts -->
+  <script type="module" src="js/gallery.js"></script>
+  <script type="module" src="js/uploader.js"></script>
+</body>
+</html>
