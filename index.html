@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="A personal photo gallery of random clicks, memories, street scenes, and personal moments.">
   <title>Moments & Clicks • Personal Photo Gallery</title>
   
@@ -10,7 +10,27 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
-  
+  <!-- Tailwind CSS CDN with custom theme config -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['attribute', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+          },
+          colors: {
+            accent: { primary: '#10b981', secondary: '#06b6d4' },
+          },
+          screens: { 'xs': '480px', '2xl': '1536px' },
+        },
+      },
+    };
+  </script>
+
+  <meta name="theme-color" content="#0f172a">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -21,7 +41,7 @@
 
   <!-- Header -->
   <header class="site-header">
-    <div class="header-container">
+    <div class="header-container flex items-center justify-between gap-3">
       <div class="brand">
         <a href="#" class="brand-link">
           <div class="brand-icon">
@@ -512,5 +532,6 @@
   <!-- Scripts -->
   <script type="module" src="js/gallery.js"></script>
   <script type="module" src="js/uploader.js"></script>
+  <script type="module" src="js/cursor.js"></script>
 </body>
 </html>
