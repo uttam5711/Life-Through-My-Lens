@@ -88,22 +88,32 @@ export async function loadPhotos() {
 function renderCategories() {
   if (!categoryPillsWrapper) return;
 
-  const categories = new Set();
+  const categoryCounts = {};
   state.allPhotos.forEach(p => {
-    if (p.category) categories.add(p.category);
+    if (p.category) {
+      categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1;
+    }
   });
 
+  const totalCount = state.allPhotos.length;
+  const isAllActive = state.activeCategory === 'all';
+
   categoryPillsWrapper.innerHTML = `
-    <button class="pill ${state.activeCategory === 'all' ? 'active' : ''}" data-category="all">
-      All Photos
+    <button class="pill ${isAllActive ? 'active' : ''}" data-category="all">
+      <span>All Photos</span>
+      <span class="pill-count">${totalCount}</span>
     </button>
   `;
 
-  categories.forEach(cat => {
+  Object.keys(categoryCounts).sort().forEach(cat => {
+    const isActive = state.activeCategory.toLowerCase() === cat.toLowerCase();
     const btn = document.createElement('button');
-    btn.className = `pill ${state.activeCategory === cat ? 'active' : ''}`;
+    btn.className = `pill ${isActive ? 'active' : ''}`;
     btn.dataset.category = cat;
-    btn.textContent = cat;
+    btn.innerHTML = `
+      <span>${escapeHtml(cat)}</span>
+      <span class="pill-count">${categoryCounts[cat]}</span>
+    `;
     categoryPillsWrapper.appendChild(btn);
   });
 }
@@ -165,7 +175,7 @@ function renderGallery() {
 
   state.filteredPhotos.forEach((photo, index) => {
     const card = document.createElement('article');
-    card.className = 'photo-card';
+    card.className = 'photo-card group';
     card.setAttribute('tabindex', '0');
     card.setAttribute('role', 'button');
     card.setAttribute('aria-label', `View ${photo.title || 'photo'}`);
@@ -183,13 +193,32 @@ function renderGallery() {
           loading="lazy" 
           decoding="async"
         />
-        <div class="photo-card-overlay">
+        <div class="card-floating-badge">
           <span class="card-category-badge">${escapeHtml(photo.category || 'Moments')}</span>
+        </div>
+        <div class="card-zoom-indicator" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </div>
+        <div class="photo-card-overlay">
           <h3 class="card-title">${escapeHtml(photo.title || 'Untitled')}</h3>
           ${photo.description ? `<p class="card-snippet">${escapeHtml(photo.description)}</p>` : ''}
-          <div class="card-footer-info">
-            <span>${formattedDate}</span>
-            <span>${photo.location ? escapeHtml(photo.location) : ''}</span>
+          <div class="card-meta-row">
+            ${photo.location ? `
+              <span class="meta-chip location-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                ${escapeHtml(photo.location)}
+              </span>` : ''}
+            ${photo.camera ? `
+              <span class="meta-chip camera-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                ${escapeHtml(photo.camera)}
+              </span>` : ''}
+            <span class="meta-chip date-chip">${formattedDate}</span>
           </div>
         </div>
       </div>

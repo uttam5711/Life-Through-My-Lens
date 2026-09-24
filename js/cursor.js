@@ -140,7 +140,8 @@ export function initCustomCursor() {
       ringX += (mouseX - ringX) * LERP_FACTOR;
       ringY += (mouseY - ringY) * LERP_FACTOR;
 
-      cursorRing.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
+      const scale = isClicking ? 0.85 : 1;
+      cursorRing.style.transform = `translate3d(${ringX}px, ${ringY}px, 0) scale(${scale})`;
     }
 
     requestAnimationFrame(renderCursor);
