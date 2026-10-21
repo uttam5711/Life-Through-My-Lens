@@ -70,14 +70,18 @@ let currentProcessedImage = null; // { file, base64, blob, filename, width, heig
  */
 function checkAdminAccess() {
   const urlParams = new URLSearchParams(window.location.search);
+  const isLocalhost = ['localhost', '127.0.0.1', '::1', ''].includes(window.location.hostname);
   
   if (urlParams.get('admin') === 'logout' || urlParams.get('admin') === 'false') {
     localStorage.removeItem('gallery_admin_mode');
+    if (isLocalhost) localStorage.setItem('gallery_admin_disabled', 'true');
   } else if (urlParams.has('admin')) {
     localStorage.setItem('gallery_admin_mode', 'true');
+    localStorage.removeItem('gallery_admin_disabled');
   }
 
-  const isAdmin = localStorage.getItem('gallery_admin_mode') === 'true';
+  const explicitDisabled = localStorage.getItem('gallery_admin_disabled') === 'true';
+  const isAdmin = !explicitDisabled && (isLocalhost || localStorage.getItem('gallery_admin_mode') === 'true');
 
   if (isAdmin) {
     document.body.classList.add('admin-mode');
@@ -133,16 +137,12 @@ function setupUploaderEvents() {
   // Modal open (Admin only)
   if (openUploadBtn) {
     openUploadBtn.addEventListener('click', () => {
-      if (localStorage.getItem('gallery_admin_mode') === 'true') {
-        openModal(uploadDialog);
-      }
+      openModal(uploadDialog);
     });
   }
   if (footerUploadBtn) {
     footerUploadBtn.addEventListener('click', () => {
-      if (localStorage.getItem('gallery_admin_mode') === 'true') {
-        openModal(uploadDialog);
-      }
+      openModal(uploadDialog);
     });
   }
 
@@ -150,6 +150,18 @@ function setupUploaderEvents() {
   if (closeUploadBtn) closeUploadBtn.addEventListener('click', () => closeModal(uploadDialog));
   if (cancelUploadBtn) cancelUploadBtn.addEventListener('click', () => closeModal(uploadDialog));
   if (closeLocalBtn) closeLocalBtn.addEventListener('click', () => closeModal(uploadDialog));
+
+  // Backdrop click to close modals
+  if (uploadDialog) {
+    uploadDialog.addEventListener('click', (e) => {
+      if (e.target === uploadDialog) closeModal(uploadDialog);
+    });
+  }
+  if (tokenGuideDialog) {
+    tokenGuideDialog.addEventListener('click', (e) => {
+      if (e.target === tokenGuideDialog) closeModal(tokenGuideDialog);
+    });
+  }
 
   // Token guide dialog
   if (tokenHelpLink) tokenHelpLink.addEventListener('click', (e) => {
@@ -553,20 +565,32 @@ function setUploadLoading(isLoading, message = '') {
 // Modal helper
 function openModal(dialog) {
   if (!dialog) return;
+  document.body.classList.add('modal-open');
   if (typeof dialog.showModal === 'function') {
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) {
+      try {
+        dialog.showModal();
+      } catch {
+        dialog.setAttribute('open', '');
+      }
+    }
   } else {
     dialog.setAttribute('open', '');
   }
+  window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: true, dialog } }));
 }
 
 function closeModal(dialog) {
   if (!dialog) return;
   if (typeof dialog.close === 'function') {
-    dialog.close();
+    if (dialog.open) dialog.close();
   } else {
     dialog.removeAttribute('open');
   }
+  if (!document.querySelector('dialog[open]')) {
+    document.body.classList.remove('modal-open');
+  }
+  window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: false, dialog } }));
 }
 
 function capitalizeWords(str) {
@@ -574,4 +598,8 @@ function capitalizeWords(str) {
 }
 
 // Start
-document.addEventListener('DOMContentLoaded', initUploader);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUploader);
+} else {
+  initUploader();
+}

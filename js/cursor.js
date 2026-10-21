@@ -2,8 +2,9 @@
  * CUSTOM INTERACTIVE CURSOR CONTROLLER
  * Features:
  * - Fluid Linear Interpolation (LERP) trailing ring with instant center dot
- * - Context-aware hover states (photo cards "VIEW", buttons/pills magnetic glow)
- * - Tactile mousedown click squeeze effect
+ * - Context-aware morphing (photo cards "VIEW/ZOOM", buttons magnetic bloom, inputs delicate text caret state)
+ * - Seamless modal & upload studio support: dynamically promotes cursor elements to top-layer dialogs
+ * - Tactile mousedown click squeeze effect everywhere across page and dialogs
  * - Strict touch/mobile & reduced-motion safeguards
  */
 
@@ -37,6 +38,7 @@ export function initCustomCursor() {
     document.body.appendChild(cursorRing);
   }
 
+  const cursorText = cursorRing.querySelector('.cursor-text');
   document.body.classList.add('has-custom-cursor');
 
   let mouseX = -100;
@@ -46,7 +48,41 @@ export function initCustomCursor() {
   let isVisible = false;
   let isHoveringCard = false;
   let isHoveringInteractive = false;
+  let isHoveringInput = false;
   let isClicking = false;
+
+  /**
+   * Keep cursor elements attached to the currently active top-layer modal
+   * or document.body so they render smoothly on top of all dialogs and backdrops.
+   */
+  function syncCursorContainer() {
+    const openDialogs = Array.from(document.querySelectorAll('dialog[open]'));
+    const activeDialog = openDialogs.length > 0 ? openDialogs[openDialogs.length - 1] : null;
+    const targetParent = activeDialog || document.body;
+
+    if (cursorDot.parentElement !== targetParent) {
+      targetParent.appendChild(cursorDot);
+      targetParent.appendChild(cursorRing);
+    }
+  }
+
+  function hideCustomCursor() {
+    cursorDot.classList.add('cursor-hidden');
+    cursorRing.classList.add('cursor-hidden');
+  }
+
+  function showCustomCursor() {
+    cursorDot.classList.remove('cursor-hidden');
+    cursorRing.classList.remove('cursor-hidden');
+  }
+
+  function resetHoverStates() {
+    isHoveringCard = false;
+    isHoveringInteractive = false;
+    isHoveringInput = false;
+    cursorRing.classList.remove('cursor-hover-card', 'cursor-hover-interactive', 'cursor-hover-input');
+    cursorDot.classList.remove('cursor-hover-card', 'cursor-hover-interactive', 'cursor-hover-input');
+  }
 
   // Track mouse coordinates
   window.addEventListener('mousemove', (e) => {
@@ -55,25 +91,28 @@ export function initCustomCursor() {
 
     if (!isVisible) {
       isVisible = true;
-      cursorDot.classList.remove('cursor-hidden');
-      cursorRing.classList.remove('cursor-hidden');
+      showCustomCursor();
+      ringX = mouseX;
+      ringY = mouseY;
     }
 
-    // Direct dot positioning (0 latency)
+    syncCursorContainer();
+    showCustomCursor();
+
+    // Direct dot positioning (zero latency)
     cursorDot.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0)`;
   }, { passive: true });
 
   // Handle window exit/enter
   document.addEventListener('mouseleave', () => {
     isVisible = false;
-    cursorDot.classList.add('cursor-hidden');
-    cursorRing.classList.add('cursor-hidden');
+    hideCustomCursor();
   });
 
   document.addEventListener('mouseenter', () => {
     isVisible = true;
-    cursorDot.classList.remove('cursor-hidden');
-    cursorRing.classList.remove('cursor-hidden');
+    syncCursorContainer();
+    showCustomCursor();
   });
 
   // Click squeeze animation
@@ -89,47 +128,96 @@ export function initCustomCursor() {
     cursorDot.classList.remove('cursor-clicking');
   });
 
-  // Dynamic delegation for interactive hover targets
+  // Context-aware dynamic delegation for interactive targets
   document.addEventListener('mouseover', (e) => {
     const target = e.target;
-    if (!target) return;
+    if (!target || !target.closest) return;
 
-    // Check if hovering photo card or thumbnail
+    // 1. Photo card or Lightbox image
     const card = target.closest('.photo-card, .photo-thumb-container, .lightbox-image');
     if (card) {
+      resetHoverStates();
       isHoveringCard = true;
+      if (cursorText) {
+        cursorText.textContent = target.closest('.lightbox-image') ? 'ZOOM' : 'VIEW';
+      }
       cursorRing.classList.add('cursor-hover-card');
       cursorDot.classList.add('cursor-hover-card');
       return;
     }
 
-    // Check if hovering buttons, links, pills, inputs
-    const interactive = target.closest('button, a, input, select, textarea, .pill, .icon-btn, .layout-btn, .close-btn');
-    if (interactive) {
+    // 2. Text input or textarea (contract ring and display native text caret)
+    const textInput = target.closest('input:not([type="file"]):not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea');
+    if (textInput) {
+      resetHoverStates();
+      isHoveringInput = true;
+      cursorRing.classList.add('cursor-hover-input');
+      cursorDot.classList.add('cursor-hover-input');
+      return;
+    }
+
+    // 3. Dropzone / file upload area
+    const dropzone = target.closest('.dropzone, .dropzone-empty, .dropzone-preview');
+    if (dropzone) {
+      resetHoverStates();
       isHoveringInteractive = true;
       cursorRing.classList.add('cursor-hover-interactive');
       cursorDot.classList.add('cursor-hover-interactive');
       return;
     }
+
+    // 4. Buttons, links, pills, tabs, layout switches, close buttons
+    const interactive = target.closest('button, a, select, .pill, .icon-btn, .layout-btn, .close-btn, .tab-btn, .primary-btn, .secondary-btn, .quick-search-pill');
+    if (interactive) {
+      resetHoverStates();
+      isHoveringInteractive = true;
+      cursorRing.classList.add('cursor-hover-interactive');
+      cursorDot.classList.add('cursor-hover-interactive');
+      return;
+    }
+
+    resetHoverStates();
   });
 
   document.addEventListener('mouseout', (e) => {
     const target = e.target;
-    if (!target) return;
+    if (!target || !target.closest) return;
 
-    const card = target.closest('.photo-card, .photo-thumb-container, .lightbox-image');
-    if (card) {
-      isHoveringCard = false;
-      cursorRing.classList.remove('cursor-hover-card');
-      cursorDot.classList.remove('cursor-hover-card');
+    const interactiveTarget = target.closest('.photo-card, .photo-thumb-container, .lightbox-image, input, textarea, button, a, select, .pill, .icon-btn, .layout-btn, .close-btn, .tab-btn, .dropzone, .primary-btn, .secondary-btn');
+    if (interactiveTarget) {
+      resetHoverStates();
     }
+  });
 
-    const interactive = target.closest('button, a, input, select, textarea, .pill, .icon-btn, .layout-btn, .close-btn');
-    if (interactive) {
-      isHoveringInteractive = false;
-      cursorRing.classList.remove('cursor-hover-interactive');
-      cursorDot.classList.remove('cursor-hover-interactive');
-    }
+  // Keep cursor visible during drag and drop
+  window.addEventListener('dragenter', () => {
+    syncCursorContainer();
+    showCustomCursor();
+  });
+
+  window.addEventListener('dragover', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    cursorDot.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0)`;
+  });
+
+  // Watch for any modal dialog opening/closing to sync parent container
+  const dialogObserver = new MutationObserver(() => {
+    syncCursorContainer();
+    const hasOpenDialog = document.querySelector('dialog[open]') !== null;
+    document.body.classList.toggle('modal-open', hasOpenDialog);
+  });
+
+  document.querySelectorAll('dialog').forEach(dialog => {
+    dialogObserver.observe(dialog, { attributes: true, attributeFilter: ['open'] });
+    dialog.addEventListener('close', () => {
+      setTimeout(syncCursorContainer, 20);
+    });
+  });
+
+  // Listen to custom modal state change events
+  window.addEventListener('modalstatechange', () => {
+    syncCursorContainer();
   });
 
   // Physics animation loop using Linear Interpolation (LERP)
@@ -142,6 +230,9 @@ export function initCustomCursor() {
 
       const scale = isClicking ? 0.85 : 1;
       cursorRing.style.transform = `translate3d(${ringX}px, ${ringY}px, 0) scale(${scale})`;
+    } else {
+      ringX = mouseX;
+      ringY = mouseY;
     }
 
     requestAnimationFrame(renderCursor);
@@ -156,4 +247,3 @@ if (document.readyState === 'loading') {
 } else {
   initCustomCursor();
 }
-

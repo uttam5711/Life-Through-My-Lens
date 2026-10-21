@@ -261,6 +261,7 @@ export function openLightbox(index) {
   state.currentLightboxIndex = index;
   updateLightboxView();
   
+  document.body.classList.add('modal-open');
   if (typeof lightboxDialog.showModal === 'function') {
     if (!lightboxDialog.open) {
       lightboxDialog.showModal();
@@ -268,6 +269,7 @@ export function openLightbox(index) {
   } else {
     lightboxDialog.setAttribute('open', '');
   }
+  window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: true, dialog: lightboxDialog } }));
 }
 
 function updateLightboxView() {
@@ -350,10 +352,14 @@ function prevPhoto() {
 
 function closeLightbox() {
   if (typeof lightboxDialog.close === 'function') {
-    lightboxDialog.close();
+    if (lightboxDialog.open) lightboxDialog.close();
   } else {
     lightboxDialog.removeAttribute('open');
   }
+  if (!document.querySelector('dialog[open]')) {
+    document.body.classList.remove('modal-open');
+  }
+  window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: false, dialog: lightboxDialog } }));
   history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
@@ -416,6 +422,26 @@ function setupEventListeners() {
     pill.classList.add('active');
     state.activeCategory = pill.dataset.category || 'all';
     applyFilters();
+  });
+
+  // Quick search button in menubar
+  const quickSearchTrigger = document.getElementById('quick-search-trigger');
+  if (quickSearchTrigger && searchInput) {
+    quickSearchTrigger.addEventListener('click', () => {
+      searchInput.focus();
+      searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  // Global ⌘K or Ctrl+K shortcut to focus search
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   });
 
   // Search input
@@ -576,4 +602,8 @@ function escapeHtml(str) {
 }
 
 // Start on DOM ready
-document.addEventListener('DOMContentLoaded', initGallery);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initGallery);
+} else {
+  initGallery();
+}
