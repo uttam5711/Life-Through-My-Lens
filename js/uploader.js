@@ -70,23 +70,24 @@ let currentProcessedImage = null; // { file, base64, blob, filename, width, heig
  */
 function checkAdminAccess() {
   const urlParams = new URLSearchParams(window.location.search);
-  const isLocalhost = ['localhost', '127.0.0.1', '::1', ''].includes(window.location.hostname);
-  
-  if (urlParams.get('admin') === 'logout' || urlParams.get('admin') === 'false') {
-    localStorage.removeItem('gallery_admin_mode');
-    if (isLocalhost) localStorage.setItem('gallery_admin_disabled', 'true');
-  } else if (urlParams.has('admin')) {
-    localStorage.setItem('gallery_admin_mode', 'true');
-    localStorage.removeItem('gallery_admin_disabled');
-  }
+  const isAdmin = urlParams.has('admin') && urlParams.get('admin') !== 'false' && urlParams.get('admin') !== 'logout';
 
-  const explicitDisabled = localStorage.getItem('gallery_admin_disabled') === 'true';
-  const isAdmin = !explicitDisabled && (isLocalhost || localStorage.getItem('gallery_admin_mode') === 'true');
+  // Clear any legacy persistent admin mode from localStorage
+  try {
+    localStorage.removeItem('gallery_admin_mode');
+    localStorage.removeItem('gallery_admin_disabled');
+  } catch {}
 
   if (isAdmin) {
     document.body.classList.add('admin-mode');
     if (openUploadBtn) openUploadBtn.hidden = false;
     if (footerUploadBtn) footerUploadBtn.hidden = false;
+
+    // Remove ?admin from URL bar so that a subsequent page refresh removes the upload option
+    urlParams.delete('admin');
+    const remainingQuery = urlParams.toString();
+    const cleanUrl = window.location.pathname + (remainingQuery ? '?' + remainingQuery : '') + window.location.hash;
+    window.history.replaceState(null, '', cleanUrl);
   } else {
     document.body.classList.remove('admin-mode');
     if (openUploadBtn) openUploadBtn.hidden = true;
