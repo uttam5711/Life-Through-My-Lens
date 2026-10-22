@@ -12,6 +12,10 @@ export const state = {
   searchQuery: '',
   sortBy: 'newest',
   currentLightboxIndex: 0,
+  currentView: 'masonry', // 'masonry' | 'grid' | 'timeline' | 'map'
+  isSlideshowActive: false,
+  slideshowTimer: null,
+  slideshowVariant: 0,
 };
 
 // Configurable Google Sheet Web App URL for visitor registry:
@@ -22,6 +26,11 @@ export function getGoogleSheetUrl() {
 
 // DOM Elements
 const galleryContainer = document.getElementById('gallery-container');
+const timelineContainer = document.getElementById('timeline-container');
+const mapContainer = document.getElementById('map-container');
+const mapPhotoCount = document.getElementById('map-photo-count');
+const mapRecenterBtn = document.getElementById('map-recenter-btn');
+
 const categoryPillsWrapper = document.getElementById('category-pills');
 const searchInput = document.getElementById('search-input');
 const clearSearchBtn = document.getElementById('clear-search-btn');
@@ -32,6 +41,9 @@ const photoCounter = document.getElementById('counter-text');
 const themeToggle = document.getElementById('theme-toggle');
 const viewMasonryBtn = document.getElementById('view-masonry');
 const viewGridBtn = document.getElementById('view-grid');
+const viewTimelineBtn = document.getElementById('view-timeline');
+const viewMapBtn = document.getElementById('view-map');
+const startSlideshowBtn = document.getElementById('start-slideshow-btn');
 const soundToggle = document.getElementById('sound-toggle');
 
 // Lightbox Elements
@@ -56,6 +68,12 @@ const lbDownloadBtn = document.getElementById('lb-download-btn');
 const lbShareBtn = document.getElementById('lb-share-btn');
 const lbCloseBtn = document.getElementById('lb-close-btn');
 const lbFavBtn = document.getElementById('lb-fav-btn');
+const lbSlideshowBtn = document.getElementById('lb-slideshow-btn');
+const lbFullscreenBtn = document.getElementById('lb-fullscreen-btn');
+const lbSlideshowProgress = document.getElementById('lb-slideshow-progress');
+const lbSlideshowBar = document.getElementById('lb-slideshow-bar');
+const lbAmbientGlow = document.getElementById('lb-ambient-glow');
+
 
 /* ==========================================================
    WEB AUDIO API SOUND FX SYNTHESIZER
@@ -544,12 +562,178 @@ export function applyFilters() {
   });
 
   state.filteredPhotos = list;
-  renderGallery();
+  renderActiveView();
   updateStats();
 }
 
 /**
- * Render cards into the gallery container
+ * Dispatch rendering to active layout view
+ */
+export function renderActiveView() {
+  if (state.currentView === 'timeline') {
+    renderTimeline();
+  } else if (state.currentView === 'map') {
+    renderMap();
+  } else {
+    renderGallery();
+  }
+}
+
+/**
+ * Reusable Photo Card Builder
+ */
+function createPhotoCard(photo, index) {
+  const card = document.createElement('article');
+  card.className = 'photo-card group';
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label', `View ${photo.title || 'photo'}`);
+  card.style.setProperty('--card-idx', index);
+
+  const thumbUrl = photo.thumbnail || photo.url;
+  const formattedDate = formatDate(photo.date);
+  const favs = getFavorites();
+  const isFav = favs.includes(String(photo.id || index));
+  const isUnlocked = isVisitorUnlocked();
+
+  card.innerHTML = `
+    <div class="photo-thumb-container">
+      <div class="card-sheen" aria-hidden="true"></div>
+      <img 
+        src="${thumbUrl}" 
+        alt="${escapeHtml(photo.title || 'Photo')}" 
+        class="photo-thumb" 
+        loading="lazy" 
+        decoding="async"
+      />
+      <div class="card-floating-badge">
+        <span class="card-category-badge">${escapeHtml(photo.category || 'Moments')}</span>
+      </div>
+      <button class="card-delete-btn admin-only" data-id="${photo.id || index}" title="Delete photo (Admin)" aria-label="Delete photo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <line x1="10" y1="11" x2="10" y2="17"></line>
+          <line x1="14" y1="11" x2="14" y2="17"></line>
+        </svg>
+      </button>
+      <button class="card-fav-btn ${isFav ? 'is-fav' : ''}" data-id="${photo.id || index}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="Favorite photo">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+        </svg>
+      </button>
+      <div class="card-zoom-indicator ${isUnlocked ? '' : 'locked-indicator'}" aria-hidden="true" title="${isUnlocked ? 'View full photo' : 'Unlock full photo'}">
+        ${isUnlocked ? `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        ` : `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        `}
+      </div>
+      <div class="photo-card-overlay">
+        <h3 class="card-title">${escapeHtml(photo.title || 'Untitled')}</h3>
+        ${photo.description ? `<p class="card-snippet">${escapeHtml(photo.description)}</p>` : ''}
+        <div class="card-meta-row">
+          ${!isUnlocked ? `
+            <span class="meta-chip lock-chip">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              Enter details to view
+            </span>
+          ` : ''}
+          ${photo.location ? `
+            <span class="meta-chip location-chip">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+              ${escapeHtml(photo.location)}
+            </span>` : ''}
+          ${photo.camera ? `
+            <span class="meta-chip camera-chip">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              ${escapeHtml(photo.camera)}
+            </span>` : ''}
+          <span class="meta-chip date-chip">${formattedDate}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // 3D Card Tilt Physics & Specular Sheen on Desktop
+  const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+  if (hasFinePointer) {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const rx = ((y - cy) / cy) * -6.5;
+      const ry = ((x - cx) / cx) * 6.5;
+      card.style.setProperty('--card-rx', `${rx.toFixed(2)}deg`);
+      card.style.setProperty('--card-ry', `${ry.toFixed(2)}deg`);
+      card.style.setProperty('--card-scale', '1.025');
+      card.style.setProperty('--sheen-x', `${((x / rect.width) * 100).toFixed(1)}%`);
+      card.style.setProperty('--sheen-y', `${((y / rect.height) * 100).toFixed(1)}%`);
+    });
+
+    card.addEventListener('mouseleave', () => {
+      card.style.setProperty('--card-rx', '0deg');
+      card.style.setProperty('--card-ry', '0deg');
+      card.style.setProperty('--card-scale', '1');
+    });
+  }
+
+  // Delete button click handler (Admin only)
+  const delBtn = card.querySelector('.card-delete-btn');
+  if (delBtn) {
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.dispatchEvent(new CustomEvent('requestphotodelete', { detail: { photo } }));
+    });
+  }
+
+  // Favorite button click handler
+  const favBtn = card.querySelector('.card-fav-btn');
+  if (favBtn) {
+    favBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!isVisitorUnlocked()) {
+        openUnlockModal(index, 'Please enter your name & email to add photos to favorites!');
+        return;
+      }
+      toggleFavorite(photo.id || index, favBtn, e);
+    });
+  }
+
+  // Click & Keyboard Enter to open lightbox
+  card.addEventListener('click', () => {
+    if (!isVisitorUnlocked()) {
+      openUnlockModal(index);
+      return;
+    }
+    openLightbox(index);
+  });
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (!isVisitorUnlocked()) {
+        openUnlockModal(index);
+        return;
+      }
+      openLightbox(index);
+    }
+  });
+
+  return card;
+}
+
+/**
+ * Render standard masonry/grid view
  */
 function renderGallery() {
   if (!galleryContainer) return;
@@ -561,158 +745,363 @@ function renderGallery() {
   }
   emptyState.hidden = true;
 
-  const favs = getFavorites();
-  const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+  state.filteredPhotos.forEach((photo, index) => {
+    const card = createPhotoCard(photo, index);
+    galleryContainer.appendChild(card);
+  });
+}
+
+/**
+ * FEATURE 4: Chronological Memories Timeline View
+ */
+function renderTimeline() {
+  if (!timelineContainer) return;
+  timelineContainer.innerHTML = '';
+
+  if (state.filteredPhotos.length === 0) {
+    emptyState.hidden = false;
+    return;
+  }
+  emptyState.hidden = true;
+
+  // Luminous timeline spine
+  const spine = document.createElement('div');
+  spine.className = 'timeline-spine';
+  spine.setAttribute('aria-hidden', 'true');
+  timelineContainer.appendChild(spine);
+
+  // Group photos by Month & Year
+  const groups = {};
+  state.filteredPhotos.forEach((photo, index) => {
+    let key = 'Undated Memories';
+    let sortVal = 0;
+    if (photo.date) {
+      const d = new Date(photo.date);
+      if (!isNaN(d.getTime())) {
+        key = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        sortVal = d.getTime();
+      }
+    }
+    if (!groups[key]) {
+      groups[key] = { label: key, sortVal, items: [] };
+    }
+    groups[key].items.push({ photo, index });
+  });
+
+  Object.values(groups).forEach(group => {
+    const section = document.createElement('section');
+    section.className = 'timeline-month-section';
+
+    // Glowing Node
+    const node = document.createElement('div');
+    node.className = 'timeline-node';
+    node.setAttribute('aria-hidden', 'true');
+    section.appendChild(node);
+
+    // Sticky Month Header
+    const header = document.createElement('div');
+    header.className = 'timeline-month-header';
+    header.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span class="timeline-month-title">${escapeHtml(group.label)}</span>
+      <span class="timeline-month-count">${group.items.length} ${group.items.length === 1 ? 'Moment' : 'Moments'}</span>
+    `;
+    section.appendChild(header);
+
+    // Cards Grid
+    const grid = document.createElement('div');
+    grid.className = 'timeline-cards-grid';
+    group.items.forEach(({ photo, index }) => {
+      const card = createPhotoCard(photo, index);
+      grid.appendChild(card);
+    });
+    section.appendChild(grid);
+
+    timelineContainer.appendChild(section);
+  });
+}
+
+/**
+ * FEATURE 2: Interactive Travel & Photo Map (Leaflet)
+ */
+let leafletMapInstance = null;
+let leafletMarkersLayer = null;
+let leafletTileLayer = null;
+
+const KNOWN_COORDINATES = {
+  'junagadh': [21.5222, 70.4579],
+  'ahmedabad': [23.0225, 72.5714],
+  'bjp party': [23.0300, 72.5800],
+  'harley davidson': [23.0550, 72.5100],
+  'surat': [21.1702, 72.8311],
+  'rajkot': [22.3039, 70.8022],
+  'vadodara': [22.3072, 73.1812],
+  'gandhinagar': [23.2156, 72.6369],
+  'mumbai': [19.0760, 72.8777],
+  'delhi': [28.6139, 77.2090],
+  'goa': [15.2993, 74.1240],
+  'gir': [21.1243, 70.7963],
+  'sasan gir': [21.1243, 70.7963],
+  'somnath': [20.8880, 70.4012],
+  'dwarka': [22.2442, 68.9685],
+  'diu': [20.7144, 70.9874],
+  'kutch': [23.7337, 69.8597]
+};
+
+function resolvePhotoCoordinates(photo, index) {
+  if (photo.lat && photo.lng) {
+    return [Number(photo.lat), Number(photo.lng)];
+  }
+  const locStr = (photo.location || '').trim();
+
+  // Check if location string is raw "lat, lng" e.g. "21.5222, 70.4579"
+  const coordMatch = locStr.match(/^(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lng = parseFloat(coordMatch[3]);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return [lat, lng];
+    }
+  }
+
+  const lower = locStr.toLowerCase();
+  for (const [key, coords] of Object.entries(KNOWN_COORDINATES)) {
+    if (lower.includes(key)) {
+      const angle = (index % 8) * (Math.PI / 4);
+      const jitter = 0.0035;
+      return [coords[0] + Math.sin(angle) * jitter, coords[1] + Math.cos(angle) * jitter];
+    }
+  }
+  // Fallback anchor: Gujarat region with clean distributed offset
+  const baseLat = 22.2587 + ((index % 5) - 2) * 0.28;
+  const baseLng = 71.1924 + ((index % 4) - 1.5) * 0.32;
+  return [baseLat, baseLng];
+}
+
+
+let currentMapLayerType = 'street'; // 'street' | 'satellite' | 'dark'
+
+export function setMapLayer(type) {
+  currentMapLayerType = type;
+  if (!leafletMapInstance || typeof L === 'undefined') return;
+
+  if (leafletTileLayer) {
+    leafletMapInstance.removeLayer(leafletTileLayer);
+  }
+
+  let tileUrl;
+  let maxZoom = 19;
+  let subdomains = 'abc';
+
+  if (type === 'satellite') {
+    // Real Satellite Imagery from space (Esri World Imagery)
+    tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+    maxZoom = 19;
+  } else if (type === 'street') {
+    // Real Street Map with road names, highways, landmarks (OpenStreetMap)
+    tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    maxZoom = 19;
+  } else {
+    // Sleek Dark Minimalist theme
+    tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    subdomains = 'abcd';
+  }
+
+  leafletTileLayer = L.tileLayer(tileUrl, {
+    maxZoom,
+    subdomains
+  }).addTo(leafletMapInstance);
+
+  // Update active state on buttons
+  document.querySelectorAll('.map-layer-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.layer === type);
+  });
+}
+
+function initMapIfNeeded() {
+  if (typeof L === 'undefined') {
+    const mapEl = document.getElementById('leaflet-map');
+    if (mapEl) mapEl.innerHTML = '<div style="padding:2.5rem;text-align:center;color:var(--text-muted)">Map library loading... please check network connection.</div>';
+    return;
+  }
+  if (!leafletMapInstance) {
+    const mapEl = document.getElementById('leaflet-map');
+    if (!mapEl) return;
+    leafletMapInstance = L.map(mapEl, {
+      zoomControl: true,
+      attributionControl: false
+    }).setView([22.2587, 71.1924], 7);
+
+    setMapLayer(currentMapLayerType);
+    leafletMarkersLayer = L.layerGroup().addTo(leafletMapInstance);
+
+    // Setup layer switcher buttons
+    document.querySelectorAll('.map-layer-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const layerType = btn.dataset.layer || 'street';
+        setMapLayer(layerType);
+        soundFX.playClick();
+      });
+    });
+
+    if (mapRecenterBtn) {
+      mapRecenterBtn.addEventListener('click', () => {
+        if (leafletMarkersLayer && leafletMarkersLayer.getLayers().length > 0) {
+          const group = L.featureGroup(leafletMarkersLayer.getLayers());
+          leafletMapInstance.fitBounds(group.getBounds().pad(0.18), { animate: true });
+          soundFX.playClick();
+        }
+      });
+    }
+  }
+}
+
+export function updateMapTileLayer() {
+  // Only change automatically if user hasn't selected Satellite
+  if (currentMapLayerType === 'satellite') return;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  setMapLayer(isDark ? 'dark' : 'street');
+}
+
+
+function renderMap() {
+  initMapIfNeeded();
+  if (!leafletMapInstance) return;
+
+  setTimeout(() => {
+    leafletMapInstance.invalidateSize();
+    updateMapMarkers();
+  }, 120);
+}
+
+function updateMapMarkers() {
+  if (!leafletMapInstance || !leafletMarkersLayer || typeof L === 'undefined') return;
+  leafletMarkersLayer.clearLayers();
+
+  if (state.filteredPhotos.length === 0) {
+    emptyState.hidden = false;
+    if (mapPhotoCount) mapPhotoCount.textContent = '0 Photos Mapped';
+    return;
+  }
+  emptyState.hidden = true;
+
+  const validBounds = [];
+  let mappedCount = 0;
 
   state.filteredPhotos.forEach((photo, index) => {
-    const card = document.createElement('article');
-    card.className = 'photo-card group';
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('role', 'button');
-    card.setAttribute('aria-label', `View ${photo.title || 'photo'}`);
-    card.style.setProperty('--card-idx', index);
+    const coords = resolvePhotoCoordinates(photo, index);
+    if (!coords) return;
+    mappedCount++;
+    validBounds.push(coords);
 
-    // Thumbnail fallback
     const thumbUrl = photo.thumbnail || photo.url;
-    const formattedDate = formatDate(photo.date);
-    const isFav = favs.includes(String(photo.id || index));
-    const isUnlocked = isVisitorUnlocked();
+    const title = escapeHtml(photo.title || 'Untitled Click');
+    const locationName = escapeHtml(photo.location || 'Gujarat, India');
+    const dateFormatted = formatDate(photo.date);
+    const category = escapeHtml(photo.category || 'Moments');
 
-    card.innerHTML = `
-      <div class="photo-thumb-container">
-        <div class="card-sheen" aria-hidden="true"></div>
-        <img 
-          src="${thumbUrl}" 
-          alt="${escapeHtml(photo.title || 'Photo')}" 
-          class="photo-thumb" 
-          loading="lazy" 
-          decoding="async"
-        />
-        <div class="card-floating-badge">
-          <span class="card-category-badge">${escapeHtml(photo.category || 'Moments')}</span>
-        </div>
-        <button class="card-delete-btn admin-only" data-id="${photo.id || index}" title="Delete photo (Admin)" aria-label="Delete photo">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            <line x1="10" y1="11" x2="10" y2="17"></line>
-            <line x1="14" y1="11" x2="14" y2="17"></line>
-          </svg>
-        </button>
-        <button class="card-fav-btn ${isFav ? 'is-fav' : ''}" data-id="${photo.id || index}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="Favorite photo">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-          </svg>
-        </button>
-        <div class="card-zoom-indicator ${isUnlocked ? '' : 'locked-indicator'}" aria-hidden="true" title="${isUnlocked ? 'View full photo' : 'Unlock full photo'}">
-          ${isUnlocked ? `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <polyline points="9 21 3 21 3 15"></polyline>
-              <line x1="21" y1="3" x2="14" y2="10"></line>
-              <line x1="3" y1="21" x2="10" y2="14"></line>
-            </svg>
-          ` : `
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-          `}
-        </div>
-        <div class="photo-card-overlay">
-          <h3 class="card-title">${escapeHtml(photo.title || 'Untitled')}</h3>
-          ${photo.description ? `<p class="card-snippet">${escapeHtml(photo.description)}</p>` : ''}
-          <div class="card-meta-row">
-            ${!isUnlocked ? `
-              <span class="meta-chip lock-chip">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                Enter details to view
-              </span>
-            ` : ''}
-            ${photo.location ? `
-              <span class="meta-chip location-chip">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                ${escapeHtml(photo.location)}
-              </span>` : ''}
-            ${photo.camera ? `
-              <span class="meta-chip camera-chip">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                ${escapeHtml(photo.camera)}
-              </span>` : ''}
-            <span class="meta-chip date-chip">${formattedDate}</span>
+    const customIcon = L.divIcon({
+      className: 'map-photo-pin-container',
+      html: `
+        <div class="map-photo-pin" title="${title}">
+          <div class="pin-pulse"></div>
+          <div class="pin-thumb-wrapper">
+            <img src="${thumbUrl}" alt="${title}" class="pin-img" loading="lazy" />
           </div>
+          <div class="pin-tip"></div>
+        </div>
+      `,
+      iconSize: [48, 56],
+      iconAnchor: [24, 56],
+      popupAnchor: [0, -56]
+    });
+
+    const marker = L.marker(coords, { icon: customIcon });
+
+    const popupHtml = `
+      <div class="map-popup-card">
+        <div class="map-popup-img-wrap">
+          <img src="${thumbUrl}" alt="${title}" class="map-popup-img" />
+          <span class="map-popup-badge">${category}</span>
+        </div>
+        <div class="map-popup-info">
+          <h4 class="map-popup-title">${title}</h4>
+          <div class="map-popup-meta">
+            <span>📍 ${locationName}</span>
+            <span>•</span>
+            <span>${dateFormatted}</span>
+          </div>
+          <button type="button" class="map-popup-btn" onclick="window.openGalleryLightbox(${index})">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+            <span>View Full Photo</span>
+          </button>
         </div>
       </div>
     `;
 
-    // 3D Card Tilt Physics & Specular Sheen on Desktop
-    if (hasFinePointer) {
-      card.addEventListener('mousemove', (e) => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
-        const rx = ((y - cy) / cy) * -6.5;
-        const ry = ((x - cx) / cx) * 6.5;
-        card.style.setProperty('--card-rx', `${rx.toFixed(2)}deg`);
-        card.style.setProperty('--card-ry', `${ry.toFixed(2)}deg`);
-        card.style.setProperty('--card-scale', '1.025');
-        card.style.setProperty('--sheen-x', `${((x / rect.width) * 100).toFixed(1)}%`);
-        card.style.setProperty('--sheen-y', `${((y / rect.height) * 100).toFixed(1)}%`);
-      });
-
-      card.addEventListener('mouseleave', () => {
-        card.style.setProperty('--card-rx', '0deg');
-        card.style.setProperty('--card-ry', '0deg');
-        card.style.setProperty('--card-scale', '1');
-      });
-    }
-
-    // Delete button click handler (Admin only)
-    const delBtn = card.querySelector('.card-delete-btn');
-    if (delBtn) {
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.dispatchEvent(new CustomEvent('requestphotodelete', { detail: { photo } }));
-      });
-    }
-
-    // Favorite button click handler
-    const favBtn = card.querySelector('.card-fav-btn');
-    if (favBtn) {
-      favBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!isVisitorUnlocked()) {
-          openUnlockModal(index, 'Please enter your name & email to add photos to favorites!');
-          return;
-        }
-        toggleFavorite(photo.id || index, favBtn, e);
-      });
-    }
-
-    // Click & Keyboard Enter to open lightbox
-    card.addEventListener('click', () => {
-      if (!isVisitorUnlocked()) {
-        openUnlockModal(index);
-        return;
-      }
-      openLightbox(index);
-    });
-    card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        if (!isVisitorUnlocked()) {
-          openUnlockModal(index);
-          return;
-        }
-        openLightbox(index);
-      }
-    });
-
-    galleryContainer.appendChild(card);
+    marker.bindPopup(popupHtml, { maxWidth: 280, className: 'custom-leaflet-popup' });
+    leafletMarkersLayer.addLayer(marker);
   });
+
+  if (mapPhotoCount) {
+    mapPhotoCount.textContent = `${mappedCount} Location${mappedCount === 1 ? '' : 's'} Mapped`;
+  }
+
+  if (validBounds.length > 0) {
+    const group = L.featureGroup(leafletMarkersLayer.getLayers());
+    leafletMapInstance.fitBounds(group.getBounds().pad(0.18), { animate: true });
+  }
 }
+
+/**
+ * Switch layout views
+ */
+export function switchView(viewName) {
+  state.currentView = viewName;
+
+  [viewMasonryBtn, viewGridBtn, viewTimelineBtn, viewMapBtn].forEach(btn => {
+    if (btn) btn.classList.remove('active');
+  });
+
+  if (viewName === 'masonry') {
+    if (viewMasonryBtn) viewMasonryBtn.classList.add('active');
+    if (galleryContainer) {
+      galleryContainer.hidden = false;
+      galleryContainer.className = 'gallery-grid masonry-view';
+    }
+    if (timelineContainer) timelineContainer.hidden = true;
+    if (mapContainer) mapContainer.hidden = true;
+    renderGallery();
+  } else if (viewName === 'grid') {
+    if (viewGridBtn) viewGridBtn.classList.add('active');
+    if (galleryContainer) {
+      galleryContainer.hidden = false;
+      galleryContainer.className = 'gallery-grid uniform-view';
+    }
+    if (timelineContainer) timelineContainer.hidden = true;
+    if (mapContainer) mapContainer.hidden = true;
+    renderGallery();
+  } else if (viewName === 'timeline') {
+    if (viewTimelineBtn) viewTimelineBtn.classList.add('active');
+    if (galleryContainer) galleryContainer.hidden = true;
+    if (timelineContainer) timelineContainer.hidden = false;
+    if (mapContainer) mapContainer.hidden = true;
+    renderTimeline();
+  } else if (viewName === 'map') {
+    if (viewMapBtn) viewMapBtn.classList.add('active');
+    if (galleryContainer) galleryContainer.hidden = true;
+    if (timelineContainer) timelineContainer.hidden = true;
+    if (mapContainer) mapContainer.hidden = false;
+    renderMap();
+  }
+}
+
 
 /**
  * Update header counter stats
@@ -776,11 +1165,16 @@ function updateLightboxView() {
     lbImage.alt = photo.title || 'Full size photo';
     lbImage.style.opacity = '1';
     lbSpinner.hidden = true;
+    applyAmbientGlow(fullImg);
+    if (state.isSlideshowActive) {
+      cycleKenBurnsVariant();
+    }
   };
   fullImg.onerror = () => {
     lbImage.src = photo.thumbnail || photo.url;
     lbImage.style.opacity = '1';
     lbSpinner.hidden = true;
+    applyAmbientGlow(lbImage);
   };
 
   // Metadata
@@ -827,6 +1221,150 @@ function updateLightboxView() {
   }
 }
 
+/**
+ * FEATURE 2: Dynamic Ambient Glow (Offscreen Canvas Color Sampling)
+ */
+function applyAmbientGlow(img) {
+  if (!lbAmbientGlow) return;
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    canvas.width = 32;
+    canvas.height = 32;
+    ctx.drawImage(img, 0, 0, 32, 32);
+    const data = ctx.getImageData(0, 0, 32, 32).data;
+
+    const candidates = [];
+    for (let i = 0; i < data.length; i += 16) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      if (a < 128) continue;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const delta = max - min;
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      if (brightness < 30 || brightness > 230 || delta < 20) continue;
+      candidates.push({ r, g, b, delta });
+    }
+
+    candidates.sort((a, b) => b.delta - a.delta);
+
+    const c1 = candidates[0] || { r: 16, g: 185, b: 129 };
+    const c2 = candidates.find(c => Math.hypot(c.r - c1.r, c.g - c1.g, c.b - c1.b) > 60)
+      || candidates[Math.floor(candidates.length / 2)]
+      || { r: 6, g: 182, b: 212 };
+
+    lbAmbientGlow.style.setProperty('--ambient-r1', c1.r);
+    lbAmbientGlow.style.setProperty('--ambient-g1', c1.g);
+    lbAmbientGlow.style.setProperty('--ambient-b1', c1.b);
+    lbAmbientGlow.style.setProperty('--ambient-r2', c2.r);
+    lbAmbientGlow.style.setProperty('--ambient-g2', c2.g);
+    lbAmbientGlow.style.setProperty('--ambient-b2', c2.b);
+  } catch (e) {
+    // Canvas CORS fallback
+  }
+}
+
+/**
+ * FEATURE 1: Cinematic Slideshow Mode Controller
+ */
+export function startSlideshow() {
+  if (state.filteredPhotos.length === 0) return;
+  if (!isVisitorUnlocked()) {
+    openUnlockModal(state.currentLightboxIndex || 0, 'Please enter details to start cinematic slideshow!');
+    return;
+  }
+  if (!lightboxDialog.open) {
+    openLightbox(state.currentLightboxIndex || 0);
+  }
+  state.isSlideshowActive = true;
+  updateSlideshowUI(true);
+
+  const lbStage = document.querySelector('.lightbox-stage');
+  if (lbStage) lbStage.classList.add('ken-burns-active');
+
+  resetSlideshowProgress();
+  cycleKenBurnsVariant();
+
+  clearInterval(state.slideshowTimer);
+  state.slideshowTimer = setInterval(() => {
+    if (!state.isSlideshowActive || !lightboxDialog.open) {
+      stopSlideshow();
+      return;
+    }
+    nextPhoto();
+    resetSlideshowProgress();
+  }, 5000);
+
+  showToast('▶ Cinematic Slideshow started (5s per photo)', 'info');
+}
+
+export function stopSlideshow() {
+  state.isSlideshowActive = false;
+  if (state.slideshowTimer) {
+    clearInterval(state.slideshowTimer);
+    state.slideshowTimer = null;
+  }
+  updateSlideshowUI(false);
+  const lbStage = document.querySelector('.lightbox-stage');
+  if (lbStage) lbStage.classList.remove('ken-burns-active');
+  if (lbImage) {
+    lbImage.classList.remove('ken-burns-1', 'ken-burns-2', 'ken-burns-3', 'ken-burns-4');
+  }
+  if (lbSlideshowProgress) lbSlideshowProgress.hidden = true;
+  if (lbSlideshowBar) lbSlideshowBar.classList.remove('is-progressing');
+}
+
+export function toggleSlideshow() {
+  if (state.isSlideshowActive) {
+    stopSlideshow();
+    showToast('⏸ Slideshow paused', 'info');
+  } else {
+    startSlideshow();
+  }
+}
+
+function updateSlideshowUI(active) {
+  if (lbSlideshowBtn) {
+    lbSlideshowBtn.classList.toggle('active', active);
+    const playIcon = lbSlideshowBtn.querySelector('.lb-play-icon');
+    const pauseIcon = lbSlideshowBtn.querySelector('.lb-pause-icon');
+    if (playIcon) playIcon.style.display = active ? 'none' : 'block';
+    if (pauseIcon) pauseIcon.style.display = active ? 'block' : 'none';
+  }
+}
+
+function resetSlideshowProgress() {
+  if (!lbSlideshowProgress || !lbSlideshowBar) return;
+  lbSlideshowProgress.hidden = false;
+  lbSlideshowBar.classList.remove('is-progressing');
+  void lbSlideshowBar.offsetWidth; // force reflow
+  lbSlideshowBar.classList.add('is-progressing');
+}
+
+function cycleKenBurnsVariant() {
+  if (!lbImage) return;
+  state.slideshowVariant = (state.slideshowVariant + 1) % 4;
+  lbImage.classList.remove('ken-burns-1', 'ken-burns-2', 'ken-burns-3', 'ken-burns-4');
+  void lbImage.offsetWidth;
+  lbImage.classList.add(`ken-burns-${state.slideshowVariant + 1}`);
+}
+
+export function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    const el = lightboxDialog || document.documentElement;
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {});
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+}
+
 function nextPhoto() {
   if (state.filteredPhotos.length <= 1) return;
   state.currentLightboxIndex = (state.currentLightboxIndex + 1) % state.filteredPhotos.length;
@@ -850,6 +1388,7 @@ function triggerSlideAnimation(cls) {
 }
 
 export function closeLightbox() {
+  stopSlideshow();
   if (typeof lightboxDialog.close === 'function') {
     if (lightboxDialog.open) lightboxDialog.close();
   } else {
@@ -861,6 +1400,7 @@ export function closeLightbox() {
   window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: false, dialog: lightboxDialog } }));
   history.replaceState(null, '', window.location.pathname + window.location.search);
 }
+
 
 function toggleZoom() {
   lbImage.classList.toggle('zoomed');
@@ -991,19 +1531,55 @@ function setupEventListeners() {
   });
 
   // Layout switcher
-  viewMasonryBtn.addEventListener('click', () => {
-    viewMasonryBtn.classList.add('active');
-    viewGridBtn.classList.remove('active');
-    galleryContainer.className = 'gallery-grid masonry-view';
-    soundFX.playClick();
-  });
+  if (viewMasonryBtn) {
+    viewMasonryBtn.addEventListener('click', () => {
+      switchView('masonry');
+      soundFX.playClick();
+    });
+  }
 
-  viewGridBtn.addEventListener('click', () => {
-    viewGridBtn.classList.add('active');
-    viewMasonryBtn.classList.remove('active');
-    galleryContainer.className = 'gallery-grid uniform-view';
-    soundFX.playClick();
-  });
+  if (viewGridBtn) {
+    viewGridBtn.addEventListener('click', () => {
+      switchView('grid');
+      soundFX.playClick();
+    });
+  }
+
+  if (viewTimelineBtn) {
+    viewTimelineBtn.addEventListener('click', () => {
+      switchView('timeline');
+      soundFX.playClick();
+    });
+  }
+
+  if (viewMapBtn) {
+    viewMapBtn.addEventListener('click', () => {
+      switchView('map');
+      soundFX.playClick();
+    });
+  }
+
+  // Navigation Header Direct Map Button
+  const navMapBtn = document.getElementById('nav-map-btn');
+  if (navMapBtn) {
+    navMapBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      soundFX.playClick();
+      switchView('map');
+      if (mapContainer) {
+        mapContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+
+  // Quick Slideshow trigger button
+  if (startSlideshowBtn) {
+    startSlideshowBtn.addEventListener('click', () => {
+      soundFX.playClick();
+      startSlideshow();
+    });
+  }
+
 
   // Theme toggle
   themeToggle.addEventListener('click', () => {
@@ -1011,6 +1587,7 @@ function setupEventListeners() {
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('gallery-theme', next);
+    updateMapTileLayer();
     soundFX.playClick();
   });
 
@@ -1022,6 +1599,33 @@ function setupEventListeners() {
   lbDownloadBtn.addEventListener('click', downloadCurrentPhoto);
   lbShareBtn.addEventListener('click', shareCurrentPhoto);
   lbCloseBtn.addEventListener('click', closeLightbox);
+
+  // Slideshow & Fullscreen Lightbox buttons
+  if (lbSlideshowBtn) {
+    lbSlideshowBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundFX.playClick();
+      toggleSlideshow();
+    });
+  }
+
+  if (lbFullscreenBtn) {
+    lbFullscreenBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundFX.playClick();
+      toggleFullscreen();
+    });
+  }
+
+  document.addEventListener('fullscreenchange', () => {
+    if (lbFullscreenBtn) {
+      const isFs = Boolean(document.fullscreenElement);
+      const expIcon = lbFullscreenBtn.querySelector('.lb-expand-icon');
+      const compIcon = lbFullscreenBtn.querySelector('.lb-compress-icon');
+      if (expIcon) expIcon.style.display = isFs ? 'none' : 'block';
+      if (compIcon) compIcon.style.display = isFs ? 'block' : 'none';
+    }
+  });
 
   // Lightbox favorite button
   if (lbFavBtn) {
@@ -1067,7 +1671,21 @@ function setupEventListeners() {
         toggleFavorite(currentPhoto.id || state.currentLightboxIndex, lbFavBtn, null);
       }
     }
+    if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      toggleSlideshow();
+    }
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      toggleFullscreen();
+    }
   });
+
+  // Global window hook for map popups
+  window.openGalleryLightbox = (idx) => {
+    openLightbox(idx);
+  };
+
 
   // Touch Swipe for mobile lightbox
   let touchStartX = 0;

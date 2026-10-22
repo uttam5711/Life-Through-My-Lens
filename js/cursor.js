@@ -154,13 +154,13 @@ export function initCustomCursor() {
       return;
     }
 
-    // 1. Photo card or Lightbox image
-    const card = target.closest('.photo-card, .photo-thumb-container, .lightbox-image');
+    // 1. Photo card or Lightbox image or Map pin
+    const card = target.closest('.photo-card, .photo-thumb-container, .lightbox-image, .map-photo-pin, .map-popup-img-wrap');
     if (card) {
       resetHoverStates();
       isHoveringCard = true;
       if (cursorText) {
-        cursorText.textContent = target.closest('.lightbox-image') ? 'ZOOM' : 'VIEW';
+        cursorText.textContent = target.closest('.lightbox-image') ? 'ZOOM' : (target.closest('.map-photo-pin') ? 'PIN' : 'VIEW');
       }
       cursorRing.classList.add('cursor-hover-card');
       cursorDot.classList.add('cursor-hover-card');
@@ -188,7 +188,7 @@ export function initCustomCursor() {
     }
 
     // 4. Buttons, links, pills, tabs, layout switches, close buttons
-    const interactive = target.closest('button, a, select, .pill, .icon-btn, .layout-btn, .close-btn, .tab-btn, .primary-btn, .secondary-btn, .quick-search-pill, .back-to-top-btn, .sound-toggle-btn');
+    const interactive = target.closest('button, a, select, .pill, .icon-btn, .layout-btn, .close-btn, .tab-btn, .primary-btn, .secondary-btn, .quick-search-pill, .back-to-top-btn, .sound-toggle-btn, .slideshow-trigger-btn, .map-control-btn, .map-popup-btn');
     if (interactive) {
       resetHoverStates();
       isHoveringInteractive = true;
