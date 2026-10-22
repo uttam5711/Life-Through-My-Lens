@@ -44,6 +44,7 @@ const ghOwnerInput = document.getElementById('gh-owner');
 const ghRepoInput = document.getElementById('gh-repo');
 const ghBranchInput = document.getElementById('gh-branch');
 const ghTokenInput = document.getElementById('gh-token');
+const ghSheetUrlInput = document.getElementById('google-sheet-url');
 const toggleTokenBtn = document.getElementById('toggle-token-visibility');
 const githubSubmitBtn = document.getElementById('github-submit-btn');
 const uploadStatus = document.getElementById('upload-status');
@@ -122,6 +123,7 @@ function loadSavedGithubSettings() {
   if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gh_gallery_repo') || 'Life-Through-My-Lens';
   if (ghBranchInput) ghBranchInput.value = localStorage.getItem('gh_gallery_branch') || 'main';
   if (ghTokenInput) ghTokenInput.value = localStorage.getItem('gh_gallery_token') || '';
+  if (ghSheetUrlInput) ghSheetUrlInput.value = localStorage.getItem('gh_gallery_sheet_url') || '';
 }
 
 function saveGithubSettings() {
@@ -129,6 +131,7 @@ function saveGithubSettings() {
   if (ghRepoInput) localStorage.setItem('gh_gallery_repo', ghRepoInput.value.trim());
   if (ghBranchInput) localStorage.setItem('gh_gallery_branch', ghBranchInput.value.trim() || 'main');
   if (ghTokenInput) localStorage.setItem('gh_gallery_token', ghTokenInput.value.trim());
+  if (ghSheetUrlInput) localStorage.setItem('gh_gallery_sheet_url', ghSheetUrlInput.value.trim());
 }
 
 function setDefaultDate() {

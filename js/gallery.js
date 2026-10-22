@@ -251,6 +251,7 @@ export async function initGallery() {
   initAmbientParallax();
   updateHeroGreeting();
   setupEventListeners();
+  setupUnlockModalEvents();
   await loadPhotos();
   checkUrlHash();
 }
@@ -569,6 +570,7 @@ function renderGallery() {
     const thumbUrl = photo.thumbnail || photo.url;
     const formattedDate = formatDate(photo.date);
     const isFav = favs.includes(String(photo.id || index));
+    const isUnlocked = isVisitorUnlocked();
 
     card.innerHTML = `
       <div class="photo-thumb-container">
@@ -596,18 +598,31 @@ function renderGallery() {
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
           </svg>
         </button>
-        <div class="card-zoom-indicator" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 3 21 3 21 9"></polyline>
-            <polyline points="9 21 3 21 3 15"></polyline>
-            <line x1="21" y1="3" x2="14" y2="10"></line>
-            <line x1="3" y1="21" x2="10" y2="14"></line>
-          </svg>
+        <div class="card-zoom-indicator ${isUnlocked ? '' : 'locked-indicator'}" aria-hidden="true" title="${isUnlocked ? 'View full photo' : 'Unlock full photo'}">
+          ${isUnlocked ? `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <polyline points="9 21 3 21 3 15"></polyline>
+              <line x1="21" y1="3" x2="14" y2="10"></line>
+              <line x1="3" y1="21" x2="10" y2="14"></line>
+            </svg>
+          ` : `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          `}
         </div>
         <div class="photo-card-overlay">
           <h3 class="card-title">${escapeHtml(photo.title || 'Untitled')}</h3>
           ${photo.description ? `<p class="card-snippet">${escapeHtml(photo.description)}</p>` : ''}
           <div class="card-meta-row">
+            ${!isUnlocked ? `
+              <span class="meta-chip lock-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                Enter details to view
+              </span>
+            ` : ''}
             ${photo.location ? `
               <span class="meta-chip location-chip">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
@@ -662,15 +677,29 @@ function renderGallery() {
     if (favBtn) {
       favBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (!isVisitorUnlocked()) {
+          openUnlockModal(index, 'Please enter your name & email to add photos to favorites!');
+          return;
+        }
         toggleFavorite(photo.id || index, favBtn, e);
       });
     }
 
     // Click & Keyboard Enter to open lightbox
-    card.addEventListener('click', () => openLightbox(index));
+    card.addEventListener('click', () => {
+      if (!isVisitorUnlocked()) {
+        openUnlockModal(index);
+        return;
+      }
+      openLightbox(index);
+    });
     card.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
+        if (!isVisitorUnlocked()) {
+          openUnlockModal(index);
+          return;
+        }
         openLightbox(index);
       }
     });
@@ -699,6 +728,10 @@ function updateStats() {
  * ==========================================================
  */
 export function openLightbox(index) {
+  if (!isVisitorUnlocked()) {
+    openUnlockModal(index);
+    return;
+  }
   if (!state.filteredPhotos[index]) return;
   state.currentLightboxIndex = index;
   updateLightboxView();
@@ -829,6 +862,10 @@ function toggleZoom() {
 }
 
 async function downloadCurrentPhoto() {
+  if (!isVisitorUnlocked()) {
+    openUnlockModal(state.currentLightboxIndex, 'Please enter your name & email to download photos!');
+    return;
+  }
   const photo = state.filteredPhotos[state.currentLightboxIndex];
   if (!photo) return;
   try {
@@ -846,6 +883,10 @@ async function downloadCurrentPhoto() {
 }
 
 async function shareCurrentPhoto() {
+  if (!isVisitorUnlocked()) {
+    openUnlockModal(state.currentLightboxIndex, 'Please enter your name & email to share photos!');
+    return;
+  }
   const photo = state.filteredPhotos[state.currentLightboxIndex];
   if (!photo) return;
   const shareUrl = window.location.origin + window.location.pathname + `#photo-${photo.id || state.currentLightboxIndex}`;
@@ -1100,6 +1141,173 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/* ==========================================================
+   VISITOR REGISTRATION & FULL ACCESS GATEKEEPER
+   ========================================================== */
+let pendingUnlockPhotoIndex = null;
+
+export function isVisitorUnlocked() {
+  if (document.body.classList.contains('admin-mode') || document.documentElement.classList.contains('admin-mode')) {
+    return true;
+  }
+  try {
+    return localStorage.getItem('gallery_visitor_unlocked') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function openUnlockModal(photoIndex = null, contextHint = null) {
+  pendingUnlockPhotoIndex = photoIndex;
+  const dialog = document.getElementById('unlock-access-dialog');
+  if (!dialog) return;
+
+  const hintBox = document.getElementById('unlock-context-hint');
+  const hintText = document.getElementById('unlock-context-text');
+  if (hintBox && hintText) {
+    if (contextHint) {
+      hintBox.hidden = false;
+      hintText.textContent = contextHint;
+    } else {
+      hintBox.hidden = true;
+    }
+  }
+
+  const statusBanner = document.getElementById('unlock-status');
+  if (statusBanner) statusBanner.hidden = true;
+
+  document.body.classList.add('modal-open');
+  if (typeof dialog.showModal === 'function') {
+    if (!dialog.open) dialog.showModal();
+  } else {
+    dialog.setAttribute('open', '');
+  }
+  window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: true, dialog } }));
+
+  setTimeout(() => {
+    const nameInput = document.getElementById('visitor-name');
+    if (nameInput) nameInput.focus();
+  }, 120);
+}
+
+function closeUnlockModal() {
+  const dialog = document.getElementById('unlock-access-dialog');
+  if (!dialog) return;
+  if (typeof dialog.close === 'function') {
+    if (dialog.open) dialog.close();
+  } else {
+    dialog.removeAttribute('open');
+  }
+  if (!document.querySelector('dialog[open]')) {
+    document.body.classList.remove('modal-open');
+  }
+  window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: false, dialog } }));
+}
+
+function setupUnlockModalEvents() {
+  const dialog = document.getElementById('unlock-access-dialog');
+  if (!dialog) return;
+
+  const closeBtn = document.getElementById('close-unlock-dialog-btn');
+  const browseSmallBtn = document.getElementById('browse-small-btn');
+  const form = document.getElementById('unlock-access-form');
+  const statusBanner = document.getElementById('unlock-status');
+  const statusMsg = document.getElementById('unlock-status-msg');
+  const submitBtn = document.getElementById('submit-unlock-btn');
+
+  if (closeBtn) closeBtn.addEventListener('click', closeUnlockModal);
+  if (browseSmallBtn) browseSmallBtn.addEventListener('click', closeUnlockModal);
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) closeUnlockModal();
+  });
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('visitor-name');
+      const emailInput = document.getElementById('visitor-email');
+      const name = nameInput ? nameInput.value.trim() : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+
+      if (!name || !email) {
+        showToast('Please enter both your name and email!', 'error');
+        return;
+      }
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (statusBanner) statusBanner.hidden = false;
+      if (statusMsg) statusMsg.textContent = 'Saving details and unlocking full gallery...';
+
+      // Record visitor details in localStorage
+      const visitorInfo = {
+        name,
+        email,
+        unlockedAt: new Date().toISOString()
+      };
+      localStorage.setItem('gallery_visitor_unlocked', 'true');
+      localStorage.setItem('gallery_visitor_info', JSON.stringify(visitorInfo));
+
+      const photo = (pendingUnlockPhotoIndex !== null && state.filteredPhotos[pendingUnlockPhotoIndex])
+        ? state.filteredPhotos[pendingUnlockPhotoIndex]
+        : null;
+      const photoTitle = photo ? (photo.title || 'Untitled Click') : 'Gallery Browse';
+
+      // 1. Post to Google Sheet Web App if configured
+      const sheetUrl = localStorage.getItem('gh_gallery_sheet_url') || '';
+      if (sheetUrl) {
+        try {
+          fetch(sheetUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              timestamp: new Date().toLocaleString(),
+              name: name,
+              email: email,
+              photoTitle: photoTitle,
+              userAgent: navigator.userAgent
+            })
+          }).catch(err => console.warn('Google Sheet log notice:', err));
+        } catch (err) {}
+      }
+
+      // 2. Also send notification to FormSubmit so owner is notified
+      try {
+        const formData = new FormData();
+        formData.append('_subject', `👤 [Gallery Visitor] ${name} (${email}) unlocked full photos`);
+        formData.append('Visitor Name', name);
+        formData.append('Visitor Email', email);
+        formData.append('Photo Explored', photoTitle);
+        formData.append('Registration Date', new Date().toLocaleString());
+        formData.append('Device Info', navigator.userAgent);
+        formData.append('_template', 'table');
+        formData.append('_captcha', 'false');
+
+        fetch('https://formsubmit.co/ajax/sanganiuttam0@gmail.com', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          body: formData
+        }).catch(() => {});
+      } catch (err) {}
+
+      // Clean up modal
+      if (submitBtn) submitBtn.disabled = false;
+      if (statusBanner) statusBanner.hidden = true;
+      closeUnlockModal();
+
+      // Refresh gallery cards to reveal unlocked zoom indicators & remove lock badges
+      renderGallery();
+      showToast(`✨ Welcome, ${name}! Full gallery access unlocked.`, 'success');
+
+      // If user clicked a specific photo, immediately open it in Lightbox
+      if (pendingUnlockPhotoIndex !== null && state.filteredPhotos[pendingUnlockPhotoIndex]) {
+        openLightbox(pendingUnlockPhotoIndex);
+      }
+      pendingUnlockPhotoIndex = null;
+    });
+  }
 }
 
 // Start on DOM ready

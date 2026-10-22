@@ -561,6 +561,12 @@
                   <button type="button" id="toggle-token-visibility" class="toggle-vis-btn">Show</button>
                 </div>
               </div>
+
+              <div class="form-group">
+                <label for="google-sheet-url">Google Sheet Web App URL (Optional - For Visitor Log)</label>
+                <input type="url" id="google-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
+                <span class="settings-hint">Visitor names &amp; emails are automatically appended to this Google Sheet.</span>
+              </div>
             </div>
 
             <!-- Upload Progress / Status -->
@@ -739,6 +745,81 @@
           <span id="confirm-delete-text">Confirm &amp; Delete</span>
         </button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- ========================================================
+       MODAL 5: VISITOR REGISTRATION / UNLOCK FULL ACCESS (<dialog>)
+       ======================================================== -->
+  <dialog id="unlock-access-dialog" class="unlock-modal">
+    <div class="modal-card unlock-modal-card">
+      <div class="modal-header unlock-modal-header">
+        <div class="unlock-header-title-wrap">
+          <div class="unlock-key-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="modal-title">Unlock Full Experience</h3>
+            <p class="modal-subtitle">Enter your name &amp; email to view full photos, like, and download</p>
+          </div>
+        </div>
+        <button id="close-unlock-dialog-btn" class="close-btn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <form id="unlock-access-form" class="modal-body unlock-modal-body">
+        <div class="unlock-perks-banner">
+          <div class="perk-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            <span>Full-screen HD previews</span>
+          </div>
+          <div class="perk-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            <span>Save favorite clicks</span>
+          </div>
+          <div class="perk-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Direct photo downloads</span>
+          </div>
+          <div class="perk-item">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            <span>Direct link sharing</span>
+          </div>
+        </div>
+
+        <div id="unlock-context-hint" class="unlock-context-hint" hidden>
+          <span id="unlock-context-text">Please enter your details to view this photo in full resolution.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="visitor-name">Your Full Name <span class="required">*</span></label>
+          <input type="text" id="visitor-name" class="form-input" placeholder="e.g. Uttam Sangani" required autocomplete="name">
+        </div>
+
+        <div class="form-group">
+          <label for="visitor-email">Your Email Address <span class="required">*</span></label>
+          <input type="email" id="visitor-email" class="form-input" placeholder="e.g. name@gmail.com" required autocomplete="email">
+        </div>
+
+        <div id="unlock-status" class="unlock-status-banner" hidden>
+          <div class="otp-spinner" id="unlock-spinner"></div>
+          <span id="unlock-status-msg">Unlocking your gallery experience...</span>
+        </div>
+
+        <p class="unlock-privacy-text">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          Your information is stored in our visitor registry and unlocks all features on this device.
+        </p>
+
+        <div class="modal-footer unlock-modal-footer">
+          <button type="button" id="browse-small-btn" class="secondary-btn">Browse Small Only</button>
+          <button type="submit" id="submit-unlock-btn" class="primary-btn unlock-submit-btn">
+            <span>Unlock Full Access ✨</span>
+          </button>
+        </div>
+      </form>
     </div>
   </dialog>
 
