@@ -15,7 +15,7 @@ export const state = {
 };
 
 // Configurable Google Sheet Web App URL for visitor registry:
-export const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/library/d/16m77v6Zbl7O9ZYV4qiIYLH1iXjrgNDQTlTg5oUc-ztBNmp2GE3ef13xC/1';
+export const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzHdiSW_633zEnKwYu2Hmpx-Q3UkpTOuotpcsEk1F2mNOObb9YJWwvXy6R-pJIlssan/exec';
 export function getGoogleSheetUrl() {
   return DEFAULT_GOOGLE_SHEET_URL || localStorage.getItem('gh_gallery_sheet_url') || (typeof window !== 'undefined' && window.GALLERY_SHEET_URL) || '';
 }
@@ -106,7 +106,7 @@ class SoundFX {
       filter.connect(gain);
       gain.connect(this.ctx.destination);
       noise.start(now);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   playPop() {
@@ -127,7 +127,7 @@ class SoundFX {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.09);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   playClick() {
@@ -146,7 +146,7 @@ class SoundFX {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.03);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   toggleMute() {
@@ -173,7 +173,7 @@ export function getFavorites() {
 export function saveFavorites(favs) {
   try {
     localStorage.setItem('gallery_favorites', JSON.stringify(favs));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 export function toggleFavorite(photoId, btnElement, event) {
@@ -571,7 +571,7 @@ function renderGallery() {
     card.setAttribute('role', 'button');
     card.setAttribute('aria-label', `View ${photo.title || 'photo'}`);
     card.style.setProperty('--card-idx', index);
-    
+
     // Thumbnail fallback
     const thumbUrl = photo.thumbnail || photo.url;
     const formattedDate = formatDate(photo.date);
@@ -742,7 +742,7 @@ export function openLightbox(index) {
   state.currentLightboxIndex = index;
   updateLightboxView();
   soundFX.playShutter();
-  
+
   document.body.classList.add('modal-open');
   if (typeof lightboxDialog.showModal === 'function') {
     if (!lightboxDialog.open) {
@@ -896,7 +896,7 @@ async function shareCurrentPhoto() {
   const photo = state.filteredPhotos[state.currentLightboxIndex];
   if (!photo) return;
   const shareUrl = window.location.origin + window.location.pathname + `#photo-${photo.id || state.currentLightboxIndex}`;
-  
+
   if (navigator.clipboard) {
     await navigator.clipboard.writeText(shareUrl);
     showToast('Link copied to clipboard!', 'success');
@@ -1280,7 +1280,7 @@ function setupUnlockModalEvents() {
             mode: 'no-cors',
             body: fd
           }).catch(err => console.warn('Google Sheet POST notice:', err));
-        } catch (err) {}
+        } catch (err) { }
 
         // Method B: GET query fallback (works with doGet(e) in Google Apps Script without CORS blocks)
         try {
@@ -1288,7 +1288,7 @@ function setupUnlockModalEvents() {
           const beaconUrl = sheetUrl + (sheetUrl.includes('?') ? '&' : '?') + query;
           const img = new Image();
           img.src = beaconUrl;
-        } catch (err) {}
+        } catch (err) { }
       }
 
       // 2. Also send notification to FormSubmit so owner is notified
@@ -1307,8 +1307,8 @@ function setupUnlockModalEvents() {
           method: 'POST',
           headers: { 'Accept': 'application/json' },
           body: formData
-        }).catch(() => {});
-      } catch (err) {}
+        }).catch(() => { });
+      } catch (err) { }
 
       // Clean up modal
       if (submitBtn) submitBtn.disabled = false;
