@@ -15,7 +15,7 @@ export const state = {
 };
 
 // Configurable Google Sheet Web App URL for visitor registry:
-export const DEFAULT_GOOGLE_SHEET_URL = '';
+export const DEFAULT_GOOGLE_SHEET_URL = 'https://script.google.com/macros/library/d/16m77v6Zbl7O9ZYV4qiIYLH1iXjrgNDQTlTg5oUc-ztBNmp2GE3ef13xC/1';
 export function getGoogleSheetUrl() {
   return DEFAULT_GOOGLE_SHEET_URL || localStorage.getItem('gh_gallery_sheet_url') || (typeof window !== 'undefined' && window.GALLERY_SHEET_URL) || '';
 }
