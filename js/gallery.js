@@ -56,6 +56,9 @@ const lbCategory = document.getElementById('lb-category');
 const lbDate = document.getElementById('lb-date');
 const lbLocation = document.getElementById('lb-location');
 const lbLocationRow = document.getElementById('lb-location-row');
+const lbLocationLink = document.getElementById('lb-location-link');
+const mapOpenGmapsBtn = document.getElementById('map-open-gmaps-btn');
+const navMapBtn = document.getElementById('nav-map-btn');
 const lbCamera = document.getElementById('lb-camera');
 const lbCameraRow = document.getElementById('lb-camera-row');
 const lbTags = document.getElementById('lb-tags');
@@ -609,6 +612,12 @@ function createPhotoCard(photo, index) {
       <div class="card-floating-badge">
         <span class="card-category-badge">${escapeHtml(photo.category || 'Moments')}</span>
       </div>
+      <button class="card-edit-btn admin-only" data-id="${photo.id || index}" title="Edit details (Admin)" aria-label="Edit photo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </button>
       <button class="card-delete-btn admin-only" data-id="${photo.id || index}" title="Delete photo (Admin)" aria-label="Delete photo">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"></polyline>
@@ -648,10 +657,18 @@ function createPhotoCard(photo, index) {
             </span>
           ` : ''}
           ${photo.location ? `
-            <span class="meta-chip location-chip">
+            <a 
+              href="${getGoogleMapsUrl(photo.location)}" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="meta-chip location-chip location-link-chip" 
+              title="Open ${escapeHtml(formatLocationDisplayName(photo.location))} in Google Maps ↗"
+              onclick="event.stopPropagation();"
+            >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-              ${escapeHtml(photo.location)}
-            </span>` : ''}
+              <span>${escapeHtml(formatLocationDisplayName(photo.location))}</span>
+              <svg class="external-icon" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+            </a>` : ''}
           ${photo.camera ? `
             <span class="meta-chip camera-chip">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
@@ -688,11 +705,22 @@ function createPhotoCard(photo, index) {
     });
   }
 
+  // Edit button click handler (Admin only)
+  const editBtn = card.querySelector('.card-edit-btn');
+  if (editBtn) {
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundFX.playClick();
+      window.dispatchEvent(new CustomEvent('requestphotoedit', { detail: { photo, index } }));
+    });
+  }
+
   // Delete button click handler (Admin only)
   const delBtn = card.querySelector('.card-delete-btn');
   if (delBtn) {
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      soundFX.playClick();
       window.dispatchEvent(new CustomEvent('requestphotodelete', { detail: { photo } }));
     });
   }
@@ -853,20 +881,68 @@ const KNOWN_COORDINATES = {
   'kutch': [23.7337, 69.8597]
 };
 
+/**
+ * Parse coordinates from string (handles raw "lat, lng" and Google Maps URLs)
+ */
+export function parseCoordinates(locStr) {
+  if (!locStr) return null;
+  const str = String(locStr).trim();
+
+  // 1. Direct "lat, lng" e.g. "23.04390849092569, 72.51680471500633" or "23.0439,72.5168"
+  const plainMatch = str.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (plainMatch) {
+    const lat = parseFloat(plainMatch[1]);
+    const lng = parseFloat(plainMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng)) return [lat, lng];
+  }
+
+  // 2. Google Maps URL or query string containing @lat,lng or ?q=lat,lng
+  const urlMatch = str.match(/[@?&](?:q=|ll=)?(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (urlMatch) {
+    const lat = parseFloat(urlMatch[1]);
+    const lng = parseFloat(urlMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng)) return [lat, lng];
+  }
+
+  return null;
+}
+
+/**
+ * Clean user-facing location display name (formats GPS coords into elegant coordinates)
+ */
+export function formatLocationDisplayName(locStr) {
+  if (!locStr) return '';
+  const coords = parseCoordinates(locStr);
+  if (coords) {
+    const latDir = coords[0] >= 0 ? 'N' : 'S';
+    const lngDir = coords[1] >= 0 ? 'E' : 'W';
+    return `${Math.abs(coords[0]).toFixed(4)}° ${latDir}, ${Math.abs(coords[1]).toFixed(4)}° ${lngDir}`;
+  }
+  return locStr;
+}
+
+/**
+ * Universal real Google Maps link generator
+ */
+export function getGoogleMapsUrl(locStr) {
+  if (!locStr) return 'https://www.google.com/maps';
+  const coords = parseCoordinates(locStr);
+  if (coords) {
+    return `https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locStr)}`;
+}
+
 function resolvePhotoCoordinates(photo, index) {
   if (photo.lat && photo.lng) {
     return [Number(photo.lat), Number(photo.lng)];
   }
   const locStr = (photo.location || '').trim();
 
-  // Check if location string is raw "lat, lng" e.g. "21.5222, 70.4579"
-  const coordMatch = locStr.match(/^(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)$/);
-  if (coordMatch) {
-    const lat = parseFloat(coordMatch[1]);
-    const lng = parseFloat(coordMatch[3]);
-    if (!isNaN(lat) && !isNaN(lng)) {
-      return [lat, lng];
-    }
+  // Check if coordinates can be parsed from raw lat,lng or Google Maps URL
+  const parsed = parseCoordinates(locStr);
+  if (parsed) {
+    return parsed;
   }
 
   const lower = locStr.toLowerCase();
@@ -1033,19 +1109,25 @@ function updateMapMarkers() {
         <div class="map-popup-info">
           <h4 class="map-popup-title">${title}</h4>
           <div class="map-popup-meta">
-            <span>📍 ${locationName}</span>
+            <span>📍 ${escapeHtml(formatLocationDisplayName(photo.location || 'Gujarat, India'))}</span>
             <span>•</span>
             <span>${dateFormatted}</span>
           </div>
-          <button type="button" class="map-popup-btn" onclick="window.openGalleryLightbox(${index})">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-            <span>View Full Photo</span>
-          </button>
+          <div class="map-popup-actions">
+            <button type="button" class="map-popup-btn primary" onclick="window.openGalleryLightbox(${index})">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+              <span>View Photo</span>
+            </button>
+            <a href="${getGoogleMapsUrl(photo.location || coords.join(','))}" target="_blank" rel="noopener noreferrer" class="map-popup-btn secondary" title="Open real location in Google Maps">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+              <span>Google Maps ↗</span>
+            </a>
+          </div>
         </div>
       </div>
     `;
 
-    marker.bindPopup(popupHtml, { maxWidth: 280, className: 'custom-leaflet-popup' });
+    marker.bindPopup(popupHtml, { maxWidth: 290, className: 'custom-leaflet-popup' });
     leafletMarkersLayer.addLayer(marker);
   });
 
@@ -1053,10 +1135,26 @@ function updateMapMarkers() {
     mapPhotoCount.textContent = `${mappedCount} Location${mappedCount === 1 ? '' : 's'} Mapped`;
   }
 
+  if (mapOpenGmapsBtn && state.filteredPhotos.length > 0) {
+    const firstWithLoc = state.filteredPhotos.find(p => p.location) || state.filteredPhotos[0];
+    mapOpenGmapsBtn.href = getGoogleMapsUrl(firstWithLoc?.location || 'Gujarat, India');
+  }
+
   if (validBounds.length > 0) {
     const group = L.featureGroup(leafletMarkersLayer.getLayers());
     leafletMapInstance.fitBounds(group.getBounds().pad(0.18), { animate: true });
   }
+}
+
+export function scrollToMap() {
+  if (!mapContainer) return;
+  const headerOffset = 155;
+  const elementPosition = mapContainer.getBoundingClientRect().top;
+  const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+  window.scrollTo({
+    top: Math.max(0, offsetPosition),
+    behavior: 'smooth'
+  });
 }
 
 /**
@@ -1068,6 +1166,9 @@ export function switchView(viewName) {
   [viewMasonryBtn, viewGridBtn, viewTimelineBtn, viewMapBtn].forEach(btn => {
     if (btn) btn.classList.remove('active');
   });
+  if (navMapBtn) {
+    navMapBtn.classList.toggle('active', viewName === 'map');
+  }
 
   if (viewName === 'masonry') {
     if (viewMasonryBtn) viewMasonryBtn.classList.add('active');
@@ -1099,6 +1200,7 @@ export function switchView(viewName) {
     if (timelineContainer) timelineContainer.hidden = true;
     if (mapContainer) mapContainer.hidden = false;
     renderMap();
+    scrollToMap();
   }
 }
 
@@ -1143,7 +1245,7 @@ export function openLightbox(index) {
   window.dispatchEvent(new CustomEvent('modalstatechange', { detail: { open: true, dialog: lightboxDialog } }));
 }
 
-function updateLightboxView() {
+export function updateLightboxView() {
   const photo = state.filteredPhotos[state.currentLightboxIndex];
   if (!photo) return;
 
@@ -1185,7 +1287,12 @@ function updateLightboxView() {
 
   if (photo.location) {
     lbLocationRow.style.display = 'flex';
-    lbLocation.textContent = photo.location;
+    lbLocation.textContent = formatLocationDisplayName(photo.location);
+    if (lbLocationLink) {
+      lbLocationLink.href = getGoogleMapsUrl(photo.location);
+      lbLocationLink.setAttribute('aria-label', `Open ${photo.location} in Google Maps`);
+      lbLocationLink.title = `Open ${photo.location} in Google Maps ↗`;
+    }
   } else {
     lbLocationRow.style.display = 'none';
   }
@@ -1554,21 +1661,17 @@ function setupEventListeners() {
 
   if (viewMapBtn) {
     viewMapBtn.addEventListener('click', () => {
-      switchView('map');
       soundFX.playClick();
+      switchView('map');
     });
   }
 
   // Navigation Header Direct Map Button
-  const navMapBtn = document.getElementById('nav-map-btn');
   if (navMapBtn) {
     navMapBtn.addEventListener('click', (e) => {
       e.preventDefault();
       soundFX.playClick();
       switchView('map');
-      if (mapContainer) {
-        mapContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
     });
   }
 
@@ -1637,10 +1740,25 @@ function setupEventListeners() {
     });
   }
 
+  // Lightbox edit button (Admin only)
+  const lbEditBtn = document.getElementById('lb-edit-btn');
+  if (lbEditBtn) {
+    lbEditBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundFX.playClick();
+      const currentPhoto = state.filteredPhotos[state.currentLightboxIndex];
+      if (currentPhoto) {
+        window.dispatchEvent(new CustomEvent('requestphotoedit', { detail: { photo: currentPhoto, index: state.currentLightboxIndex } }));
+      }
+    });
+  }
+
   // Lightbox delete button (Admin only)
   const lbDeleteBtn = document.getElementById('lb-delete-btn');
   if (lbDeleteBtn) {
-    lbDeleteBtn.addEventListener('click', () => {
+    lbDeleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      soundFX.playClick();
       const currentPhoto = state.filteredPhotos[state.currentLightboxIndex];
       if (currentPhoto) {
         window.dispatchEvent(new CustomEvent('requestphotodelete', { detail: { photo: currentPhoto } }));
