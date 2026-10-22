@@ -133,7 +133,17 @@ export function initCustomCursor() {
     const target = e.target;
     if (!target || !target.closest) return;
 
-    // 0. Favorite heart buttons
+    // 0. Favorite heart buttons & Delete buttons
+    const delBtn = target.closest('.card-delete-btn, .lb-delete-btn, .danger-btn');
+    if (delBtn) {
+      resetHoverStates();
+      isHoveringInteractive = true;
+      if (cursorText) cursorText.textContent = '🗑️';
+      cursorRing.classList.add('cursor-hover-interactive', 'cursor-hover-delete');
+      cursorDot.classList.add('cursor-hover-interactive', 'cursor-hover-delete');
+      return;
+    }
+
     const favBtn = target.closest('.card-fav-btn, .lb-fav-btn');
     if (favBtn) {
       resetHoverStates();

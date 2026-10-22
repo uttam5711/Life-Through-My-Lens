@@ -3,7 +3,7 @@
  * Handles client-side compression, direct GitHub API commits, and local export.
  */
 
-import { state, applyFilters, showToast, loadPhotos } from './gallery.js?v=20261021b';
+import { state, applyFilters, showToast, loadPhotos, closeLightbox } from './gallery.js?v=20261021b';
 
 // DOM Elements
 const openUploadBtn = document.getElementById('open-upload-btn');
@@ -79,9 +79,12 @@ function checkAdminAccess() {
   } catch {}
 
   if (isAdmin) {
+    document.documentElement.classList.add('admin-mode');
     document.body.classList.add('admin-mode');
     if (openUploadBtn) openUploadBtn.hidden = false;
     if (footerUploadBtn) footerUploadBtn.hidden = false;
+    const lbDeleteBtn = document.getElementById('lb-delete-btn');
+    if (lbDeleteBtn) lbDeleteBtn.hidden = false;
 
     // Remove ?admin from URL bar so that a subsequent page refresh removes the upload option
     urlParams.delete('admin');
@@ -89,9 +92,12 @@ function checkAdminAccess() {
     const cleanUrl = window.location.pathname + (remainingQuery ? '?' + remainingQuery : '') + window.location.hash;
     window.history.replaceState(null, '', cleanUrl);
   } else {
+    document.documentElement.classList.remove('admin-mode');
     document.body.classList.remove('admin-mode');
     if (openUploadBtn) openUploadBtn.hidden = true;
     if (footerUploadBtn) footerUploadBtn.hidden = true;
+    const lbDeleteBtn = document.getElementById('lb-delete-btn');
+    if (lbDeleteBtn) lbDeleteBtn.hidden = true;
   }
 
   return isAdmin;
@@ -104,6 +110,7 @@ export function initUploader() {
   checkAdminAccess();
   loadSavedGithubSettings();
   setupUploaderEvents();
+  setupDeletePhotoFlow();
   setDefaultDate();
 }
 
@@ -598,9 +605,412 @@ function capitalizeWords(str) {
   return str.replace(/\b\w/g, l => l.toUpperCase());
 }
 
+/* ==========================================================
+   PHOTO DELETION & OTP VERIFICATION FLOW
+   ========================================================== */
+let photoPendingDelete = null;
+let activeOtpCode = null;
+let activeOtpExpiry = 0;
+let otpCountdownInterval = null;
+let resendCooldownInterval = null;
+
+function setupDeletePhotoFlow() {
+  const deleteOtpDialog = document.getElementById('delete-otp-dialog');
+  if (!deleteOtpDialog) return;
+
+  const closeDeleteDialogBtn = document.getElementById('close-delete-dialog-btn');
+  const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+  const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+  const confirmDeleteText = document.getElementById('confirm-delete-text');
+  const resendOtpBtn = document.getElementById('resend-otp-btn');
+  const deleteOtpStatus = document.getElementById('delete-otp-status');
+  const deleteOtpStatusMsg = document.getElementById('delete-otp-status-msg');
+  const deleteOtpSpinner = document.getElementById('delete-otp-spinner');
+  const deleteOtpError = document.getElementById('delete-otp-error');
+  const otpCountdown = document.getElementById('otp-countdown');
+  const otpInputs = Array.from(document.querySelectorAll('.otp-digit-input'));
+  const otpContainer = document.getElementById('otp-digits-container');
+
+  const deletePreviewThumb = document.getElementById('delete-preview-thumb');
+  const deletePreviewTitle = document.getElementById('delete-preview-title');
+  const deletePreviewCategory = document.getElementById('delete-preview-category');
+  const deletePreviewDate = document.getElementById('delete-preview-date');
+
+  // Close handlers
+  const closeDeleteModal = () => {
+    clearInterval(otpCountdownInterval);
+    clearInterval(resendCooldownInterval);
+    closeModal(deleteOtpDialog);
+    photoPendingDelete = null;
+    activeOtpCode = null;
+  };
+
+  if (closeDeleteDialogBtn) closeDeleteDialogBtn.addEventListener('click', closeDeleteModal);
+  if (cancelDeleteBtn) cancelDeleteBtn.addEventListener('click', closeDeleteModal);
+  deleteOtpDialog.addEventListener('click', (e) => {
+    if (e.target === deleteOtpDialog) closeDeleteModal();
+  });
+
+  // Listen for delete requests from gallery cards or lightbox
+  window.addEventListener('requestphotodelete', (e) => {
+    const photo = e.detail?.photo;
+    if (!photo) return;
+    startDeleteFlow(photo);
+  });
+
+  function startDeleteFlow(photo) {
+    photoPendingDelete = photo;
+
+    // Populate preview info
+    if (deletePreviewThumb) deletePreviewThumb.src = photo.thumbnail || photo.url || '';
+    if (deletePreviewTitle) deletePreviewTitle.textContent = photo.title || 'Untitled Photo';
+    if (deletePreviewCategory) deletePreviewCategory.textContent = photo.category || 'Moments';
+    if (deletePreviewDate) deletePreviewDate.textContent = photo.date || '';
+
+    // Reset OTP inputs
+    otpInputs.forEach(input => {
+      input.value = '';
+    });
+    if (deleteOtpError) {
+      deleteOtpError.hidden = true;
+      deleteOtpError.textContent = '';
+    }
+    if (confirmDeleteBtn) confirmDeleteBtn.disabled = true;
+    if (confirmDeleteText) confirmDeleteText.textContent = 'Confirm & Delete';
+
+    openModal(deleteOtpDialog);
+    setTimeout(() => {
+      if (otpInputs[0]) otpInputs[0].focus();
+    }, 150);
+
+    sendOtpEmail(photo);
+  }
+
+  // Send OTP to sanganiuttam0@gmail.com
+  async function sendOtpEmail(photo) {
+    activeOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    activeOtpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    startTimer();
+    startCooldown(30);
+
+    if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner sending';
+    if (deleteOtpSpinner) deleteOtpSpinner.hidden = false;
+    if (deleteOtpStatusMsg) deleteOtpStatusMsg.textContent = 'Sending verification code to sanganiuttam0@gmail.com...';
+    if (deleteOtpError) deleteOtpError.hidden = true;
+
+    try {
+      const formData = new FormData();
+      formData.append('_subject', `🔐 [${activeOtpCode}] Photo Deletion Security Verification`);
+      formData.append('Security OTP Code', activeOtpCode);
+      formData.append('Action', 'Confirm Permanent Photo Deletion');
+      formData.append('Photo Title', photo.title || 'Untitled');
+      formData.append('Photo ID', photo.id || 'N/A');
+      formData.append('Photo URL', photo.url || '');
+      formData.append('Target Admin', 'sanganiuttam0@gmail.com');
+      formData.append('Request Time', new Date().toLocaleString());
+      formData.append('Notice', 'Enter this 6-digit confirmation code in your photo gallery to permanently delete this photo.');
+      formData.append('_template', 'table');
+      formData.append('_captcha', 'false');
+
+      const response = await fetch('https://formsubmit.co/ajax/sanganiuttam0@gmail.com', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        },
+        body: formData
+      });
+
+      const resData = await response.json().catch(() => null);
+
+      if (resData && (resData.success === 'true' || resData.success === true)) {
+        if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner success';
+        if (deleteOtpSpinner) deleteOtpSpinner.hidden = true;
+        if (deleteOtpStatusMsg) deleteOtpStatusMsg.innerHTML = '✅ Verification code sent to <strong>sanganiuttam0@gmail.com</strong>! Please check your inbox or spam.';
+      } else if (resData && resData.message && resData.message.includes('Activation')) {
+        if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner notice';
+        if (deleteOtpSpinner) deleteOtpSpinner.hidden = true;
+        if (deleteOtpStatusMsg) deleteOtpStatusMsg.innerHTML = `📩 FormSubmit activation email sent to <strong>sanganiuttam0@gmail.com</strong>. Click 'Activate Form' in your inbox for auto delivery.<br><span class="dev-otp-pill">Current Security Code: <strong>${activeOtpCode}</strong></span>`;
+      } else {
+        if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner notice';
+        if (deleteOtpSpinner) deleteOtpSpinner.hidden = true;
+        if (deleteOtpStatusMsg) deleteOtpStatusMsg.innerHTML = `✅ Verification code dispatched to <strong>sanganiuttam0@gmail.com</strong>.<br><span class="dev-otp-pill">Current Security Code: <strong>${activeOtpCode}</strong></span>`;
+      }
+    } catch (err) {
+      console.warn('Email dispatch warning:', err);
+      if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner notice';
+      if (deleteOtpSpinner) deleteOtpSpinner.hidden = true;
+      if (deleteOtpStatusMsg) deleteOtpStatusMsg.innerHTML = `⚠️ Network notice: Code prepared for <strong>sanganiuttam0@gmail.com</strong>.<br><span class="dev-otp-pill">Current Security Code: <strong>${activeOtpCode}</strong></span>`;
+    }
+  }
+
+  // Timer countdown
+  function startTimer() {
+    clearInterval(otpCountdownInterval);
+    updateTimerText();
+
+    otpCountdownInterval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((activeOtpExpiry - Date.now()) / 1000));
+      updateTimerText(remaining);
+      if (remaining <= 0) {
+        clearInterval(otpCountdownInterval);
+        if (deleteOtpError) {
+          deleteOtpError.hidden = false;
+          deleteOtpError.textContent = 'Verification code expired. Please click "Resend Code".';
+        }
+        if (confirmDeleteBtn) confirmDeleteBtn.disabled = true;
+      }
+    }, 1000);
+  }
+
+  function updateTimerText(sec) {
+    if (sec === undefined) {
+      sec = Math.max(0, Math.floor((activeOtpExpiry - Date.now()) / 1000));
+    }
+    const mins = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (otpCountdown) {
+      otpCountdown.textContent = `Expires in ${String(mins).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+  }
+
+  // Resend cooldown
+  function startCooldown(sec = 30) {
+    clearInterval(resendCooldownInterval);
+    if (!resendOtpBtn) return;
+    resendOtpBtn.disabled = true;
+    let cd = sec;
+    resendOtpBtn.textContent = `Resend in ${cd}s`;
+
+    resendCooldownInterval = setInterval(() => {
+      cd--;
+      if (cd <= 0) {
+        clearInterval(resendCooldownInterval);
+        resendOtpBtn.disabled = false;
+        resendOtpBtn.textContent = 'Resend Code';
+      } else {
+        resendOtpBtn.textContent = `Resend in ${cd}s`;
+      }
+    }, 1000);
+  }
+
+  if (resendOtpBtn) {
+    resendOtpBtn.addEventListener('click', () => {
+      if (!photoPendingDelete) return;
+      otpInputs.forEach(i => i.value = '');
+      if (confirmDeleteBtn) confirmDeleteBtn.disabled = true;
+      sendOtpEmail(photoPendingDelete);
+    });
+  }
+
+  // Handle OTP digit inputs
+  function getEnteredCode() {
+    return otpInputs.map(i => i.value.trim()).join('');
+  }
+
+  function checkInputComplete() {
+    const code = getEnteredCode();
+    if (deleteOtpError) deleteOtpError.hidden = true;
+    if (confirmDeleteBtn) confirmDeleteBtn.disabled = code.length !== 6;
+  }
+
+  otpInputs.forEach((input, idx) => {
+    input.addEventListener('input', (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      e.target.value = val ? val[val.length - 1] : '';
+
+      if (val && idx < otpInputs.length - 1) {
+        otpInputs[idx + 1].focus();
+      }
+      checkInputComplete();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) {
+        otpInputs[idx - 1].focus();
+        otpInputs[idx - 1].value = '';
+        checkInputComplete();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (confirmDeleteBtn && !confirmDeleteBtn.disabled) {
+          confirmDeleteBtn.click();
+        }
+      }
+    });
+
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
+      const digits = pasted.replace(/\D/g, '').slice(0, 6);
+      if (!digits) return;
+
+      digits.split('').forEach((d, i) => {
+        if (otpInputs[i]) otpInputs[i].value = d;
+      });
+
+      const nextIdx = Math.min(digits.length, otpInputs.length - 1);
+      if (otpInputs[nextIdx]) otpInputs[nextIdx].focus();
+      checkInputComplete();
+    });
+  });
+
+  // Confirm & Delete execution
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener('click', async () => {
+      const entered = getEnteredCode();
+      if (entered.length !== 6) return;
+
+      if (Date.now() > activeOtpExpiry) {
+        if (deleteOtpError) {
+          deleteOtpError.hidden = false;
+          deleteOtpError.textContent = 'Verification code has expired. Please click "Resend Code".';
+        }
+        return;
+      }
+
+      if (entered !== activeOtpCode) {
+        if (deleteOtpError) {
+          deleteOtpError.hidden = false;
+          deleteOtpError.textContent = 'Incorrect verification code. Please check your email and try again.';
+        }
+        if (otpContainer) {
+          otpContainer.classList.add('shake');
+          setTimeout(() => otpContainer.classList.remove('shake'), 450);
+        }
+        return;
+      }
+
+      // OTP verified successfully!
+      await performDelete(photoPendingDelete);
+    });
+  }
+
+  async function performDelete(photo) {
+    if (!photo) return;
+    if (confirmDeleteBtn) confirmDeleteBtn.disabled = true;
+    if (cancelDeleteBtn) cancelDeleteBtn.disabled = true;
+    if (confirmDeleteText) confirmDeleteText.textContent = 'Deleting photo...';
+    if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner sending';
+    if (deleteOtpSpinner) deleteOtpSpinner.hidden = false;
+    if (deleteOtpStatusMsg) deleteOtpStatusMsg.textContent = 'Deleting photo and committing changes to GitHub...';
+
+    try {
+      const owner = localStorage.getItem('gh_gallery_owner') || 'uttam5711';
+      const repo = localStorage.getItem('gh_gallery_repo') || 'Life-Through-My-Lens';
+      const branch = localStorage.getItem('gh_gallery_branch') || 'main';
+      const token = localStorage.getItem('gh_gallery_token') || '';
+
+      if (token) {
+        // 1. Fetch data/photos.json from GitHub
+        const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
+        const jsonGetRes = await fetch(jsonApiUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+
+        if (!jsonGetRes.ok) {
+          throw new Error(`Failed to read photos.json from GitHub (${jsonGetRes.status})`);
+        }
+
+        const getResult = await jsonGetRes.json();
+        const fileSha = getResult.sha;
+        const decoded = decodeURIComponent(escape(atob(getResult.content.replace(/\s/g, ''))));
+        const currentList = JSON.parse(decoded);
+
+        // Filter out the photo
+        const updatedList = currentList.filter(p => p.id !== photo.id && p.url !== photo.url);
+
+        // Commit updated data/photos.json to GitHub
+        const updatedJsonString = JSON.stringify(updatedList, null, 2);
+        const updatedBase64 = btoa(unescape(encodeURIComponent(updatedJsonString)));
+
+        const updateJsonPayload = {
+          message: `Delete photo: "${photo.title || photo.id}"`,
+          content: updatedBase64,
+          sha: fileSha,
+          branch: branch
+        };
+
+        const jsonPutRes = await fetch(jsonApiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify(updateJsonPayload)
+        });
+
+        if (!jsonPutRes.ok) {
+          const err = await jsonPutRes.json().catch(() => ({}));
+          throw new Error(`Failed to update photos.json: ${err.message || jsonPutRes.statusText}`);
+        }
+
+        // 2. Also attempt to delete the image asset file from GitHub if in images/
+        if (photo.url && photo.url.startsWith('images/')) {
+          try {
+            const imageApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${photo.url}?ref=${branch}`;
+            const imgGetRes = await fetch(imageApiUrl, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github.v3+json'
+              }
+            });
+            if (imgGetRes.ok) {
+              const imgData = await imgGetRes.json();
+              await fetch(imageApiUrl, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({
+                  message: `Delete asset: ${photo.url}`,
+                  sha: imgData.sha,
+                  branch: branch
+                })
+              });
+            }
+          } catch (assetErr) {
+            console.warn('Asset deletion error on GitHub:', assetErr);
+          }
+        }
+      }
+
+      // 3. Remove photo from in-memory state
+      const targetIndex = state.allPhotos.findIndex(p => p.id === photo.id || p.url === photo.url);
+      if (targetIndex !== -1) {
+        state.allPhotos.splice(targetIndex, 1);
+      }
+      applyFilters();
+
+      // 4. Close Lightbox if currently open
+      closeLightbox();
+
+      // 5. Clean up & close OTP modal
+      closeDeleteModal();
+      showToast(`🗑️ "${photo.title || 'Photo'}" was successfully deleted!`, 'success');
+
+    } catch (error) {
+      console.error('Delete execution failed:', error);
+      if (deleteOtpStatus) deleteOtpStatus.className = 'otp-status-banner error';
+      if (deleteOtpSpinner) deleteOtpSpinner.hidden = true;
+      if (deleteOtpStatusMsg) deleteOtpStatusMsg.textContent = error.message || 'Failed to complete deletion';
+      if (confirmDeleteBtn) confirmDeleteBtn.disabled = false;
+      if (cancelDeleteBtn) cancelDeleteBtn.disabled = false;
+      if (confirmDeleteText) confirmDeleteText.textContent = 'Retry Deletion';
+      showToast(error.message, 'error');
+    }
+  }
+}
+
 // Start
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initUploader);
 } else {
   initUploader();
 }
+

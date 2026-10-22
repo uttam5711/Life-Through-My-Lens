@@ -1915,17 +1915,74 @@ dialog:not([open]),
 
 /* ==========================================================
    ADMIN / OWNER VISIBILITY RULES
-   Normal visitors see only photos. Upload controls are hidden.
+   Normal visitors see only photos. Upload & delete controls are hidden.
    ========================================================== */
 .admin-only[hidden] {
   display: none !important;
 }
 
-body:not(.admin-mode) .admin-only {
+:is(html:not(.admin-mode), body:not(.admin-mode)) .admin-only {
   display: none !important;
 }
 
-body.admin-mode .admin-only:not([hidden]) {
+:is(html.admin-mode, body.admin-mode) .admin-only:not([hidden]) {
+  display: inline-flex !important;
+}
+
+/* Card Delete Button (Admin Only) */
+.card-delete-btn {
+  position: absolute;
+  top: 0.85rem;
+  right: 3.45rem;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .card-delete-btn {
+  background: rgba(254, 242, 242, 0.9);
+  border-color: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+:is(html.admin-mode, body.admin-mode) .card-delete-btn {
+  display: flex !important;
+}
+
+.card-delete-btn:hover {
+  transform: scale(1.14);
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.55);
+}
+
+/* Lightbox Delete Button (Admin Only) */
+.lb-delete-btn {
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+.lb-delete-btn:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4) !important;
+}
+
+:is(html.admin-mode, body.admin-mode) .lb-delete-btn:not([hidden]) {
   display: inline-flex !important;
 }
 
@@ -2024,6 +2081,23 @@ body.admin-mode .admin-only:not([hidden]) {
 }
 
 .cursor-dot.cursor-hover-card {
+  opacity: 0;
+}
+
+/* Hovering delete buttons */
+.cursor-ring.cursor-hover-delete {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.4) !important;
+}
+
+.cursor-ring.cursor-hover-delete .cursor-text {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.cursor-dot.cursor-hover-delete {
+  background: #ef4444 !important;
   opacity: 0;
 }
 
@@ -2753,5 +2827,428 @@ body.has-custom-cursor .sound-toggle-btn {
   }
 }
 
+/* ==========================================================
+   MODAL 4: DELETE PHOTO OTP CONFIRMATION MODAL
+   ========================================================== */
+.delete-otp-modal {
+  border: none;
+  background: transparent;
+  padding: 1rem;
+  max-width: 540px;
+  width: 95%;
+  margin: auto;
+  box-sizing: border-box;
+}
 
+.delete-otp-modal::backdrop {
+  background: rgba(10, 15, 29, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
 
+.delete-modal-card {
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 24px;
+  box-shadow: 0 25px 60px -15px rgba(239, 68, 68, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #f8fafc;
+}
+
+[data-theme="light"] .delete-modal-card {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 25px 60px -15px rgba(239, 68, 68, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+}
+
+.delete-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-theme="light"] .delete-modal-header {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.delete-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.delete-shield-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.delete-modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+/* Target Photo Preview */
+.delete-target-preview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem;
+  border-radius: 16px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .delete-target-preview {
+  background: rgba(241, 245, 249, 0.8);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.delete-thumb {
+  width: 68px;
+  height: 68px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.delete-target-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.delete-target-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.delete-meta-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.delete-target-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #818cf8;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+[data-theme="light"] .delete-target-badge {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
+}
+
+.delete-target-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.delete-warning-text {
+  font-size: 0.78rem;
+  color: #ef4444;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Security / Email Notice */
+.delete-email-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
+}
+
+[data-theme="light"] .delete-email-notice {
+  background: rgba(99, 102, 241, 0.08);
+  color: #3730a3;
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.email-notice-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #818cf8;
+  flex-shrink: 0;
+}
+
+.email-notice-content {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+}
+
+.email-notice-label {
+  opacity: 0.75;
+  font-size: 0.74rem;
+}
+
+.email-notice-target {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* OTP Status Banner */
+.otp-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.otp-status-banner.sending {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.otp-status-banner.success {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.otp-status-banner.notice {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.otp-status-banner.error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.dev-otp-pill {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-family: monospace;
+}
+
+[data-theme="light"] .dev-otp-pill {
+  background: rgba(0, 0, 0, 0.08);
+  color: #0f172a;
+}
+
+.otp-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(99, 102, 241, 0.3);
+  border-top-color: #818cf8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+/* OTP Digits Input */
+.otp-input-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.otp-input-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+[data-theme="light"] .otp-input-label {
+  color: #475569;
+}
+
+.otp-digits-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.otp-digit-input {
+  width: 48px;
+  height: 58px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 1.55rem;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .otp-digit-input {
+  background: #f8fafc;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.otp-digit-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+  transform: translateY(-2px);
+}
+
+[data-theme="light"] .otp-digit-input:focus {
+  background: #ffffff;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.otp-dash {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #64748b;
+  user-select: none;
+}
+
+.otp-error-msg {
+  color: #ef4444;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-7px); }
+  40%, 80% { transform: translateX(7px); }
+}
+
+.otp-digits-wrapper.shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Timer and Resend Controls */
+.otp-footer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem;
+}
+
+.otp-timer-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.resend-otp-btn {
+  background: transparent;
+  border: none;
+  color: #818cf8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .resend-otp-btn {
+  color: #4f46e5;
+}
+
+.resend-otp-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.resend-otp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Modal Footer & Danger Button */
+.delete-modal-footer {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.85rem;
+}
+
+[data-theme="light"] .delete-modal-footer {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.danger-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem 1.4rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.danger-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.55);
+}
+
+.danger-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.danger-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}

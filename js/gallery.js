@@ -583,6 +583,14 @@ function renderGallery() {
         <div class="card-floating-badge">
           <span class="card-category-badge">${escapeHtml(photo.category || 'Moments')}</span>
         </div>
+        <button class="card-delete-btn admin-only" data-id="${photo.id || index}" title="Delete photo (Admin)" aria-label="Delete photo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+        </button>
         <button class="card-fav-btn ${isFav ? 'is-fav' : ''}" data-id="${photo.id || index}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="Favorite photo">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -637,6 +645,15 @@ function renderGallery() {
         card.style.setProperty('--card-rx', '0deg');
         card.style.setProperty('--card-ry', '0deg');
         card.style.setProperty('--card-scale', '1');
+      });
+    }
+
+    // Delete button click handler (Admin only)
+    const delBtn = card.querySelector('.card-delete-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('requestphotodelete', { detail: { photo } }));
       });
     }
 
@@ -793,7 +810,7 @@ function triggerSlideAnimation(cls) {
   lbImage.classList.add(cls);
 }
 
-function closeLightbox() {
+export function closeLightbox() {
   if (typeof lightboxDialog.close === 'function') {
     if (lightboxDialog.open) lightboxDialog.close();
   } else {
@@ -965,6 +982,17 @@ function setupEventListeners() {
       const currentPhoto = state.filteredPhotos[state.currentLightboxIndex];
       if (currentPhoto) {
         toggleFavorite(currentPhoto.id || state.currentLightboxIndex, lbFavBtn, e);
+      }
+    });
+  }
+
+  // Lightbox delete button (Admin only)
+  const lbDeleteBtn = document.getElementById('lb-delete-btn');
+  if (lbDeleteBtn) {
+    lbDeleteBtn.addEventListener('click', () => {
+      const currentPhoto = state.filteredPhotos[state.currentLightboxIndex];
+      if (currentPhoto) {
+        window.dispatchEvent(new CustomEvent('requestphotodelete', { detail: { photo: currentPhoto } }));
       }
     });
   }

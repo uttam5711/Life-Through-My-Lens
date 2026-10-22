@@ -32,6 +32,17 @@
 
   <meta name="theme-color" content="#0f172a">
   <link rel="stylesheet" href="css/styles.css?v=20261021b">
+  <script>
+    // Early admin check so admin UI renders instantly without flash
+    (function() {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        if (p.has('admin') && p.get('admin') !== 'false' && p.get('admin') !== 'logout') {
+          document.documentElement.classList.add('admin-mode');
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 
@@ -298,6 +309,14 @@
           <span id="lb-current-index">1</span> / <span id="lb-total-count">8</span>
         </div>
         <div class="lightbox-top-actions">
+          <button id="lb-delete-btn" class="lb-btn lb-delete-btn admin-only" title="Delete Photo (Admin)" aria-label="Delete photo" hidden>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
           <button id="lb-fav-btn" class="lb-btn lb-fav-btn" title="Add to favorites (L)" aria-label="Favorite photo">
             <svg class="heart-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -620,6 +639,105 @@
       </div>
       <div class="modal-footer">
         <button id="guide-understood-btn" class="primary-btn">Got It!</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ========================================================
+       MODAL 4: DELETE PHOTO OTP CONFIRMATION (<dialog>)
+       ======================================================== -->
+  <dialog id="delete-otp-dialog" class="delete-otp-modal">
+    <div class="modal-card delete-modal-card">
+      <div class="modal-header delete-modal-header">
+        <div class="delete-header-title-wrap">
+          <div class="delete-shield-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 class="modal-title">Confirm Photo Deletion</h3>
+            <p class="modal-subtitle">Security verification required for admin deletion</p>
+          </div>
+        </div>
+        <button id="close-delete-dialog-btn" class="close-btn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body delete-modal-body">
+        <!-- Target Photo Preview Card -->
+        <div class="delete-target-preview">
+          <img id="delete-preview-thumb" src="" alt="Photo thumbnail" class="delete-thumb">
+          <div class="delete-target-meta">
+            <h4 id="delete-preview-title" class="delete-target-title">Photo Title</h4>
+            <div class="delete-meta-tags">
+              <span id="delete-preview-category" class="delete-target-badge">Category</span>
+              <span id="delete-preview-date" class="delete-target-date">Date</span>
+            </div>
+            <p class="delete-warning-text">⚠️ This photo will be permanently deleted from your gallery.</p>
+          </div>
+        </div>
+
+        <!-- Security / Email Notice -->
+        <div class="delete-email-notice">
+          <div class="email-notice-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+          </div>
+          <div class="email-notice-content">
+            <span class="email-notice-label">Verification OTP sent to:</span>
+            <span class="email-notice-target">sanganiuttam0@gmail.com</span>
+          </div>
+        </div>
+
+        <!-- Status Message Banner (Sending / Sent / Notice / Error) -->
+        <div id="delete-otp-status" class="otp-status-banner">
+          <div class="otp-spinner" id="delete-otp-spinner"></div>
+          <span id="delete-otp-status-msg">Sending verification code to sanganiuttam0@gmail.com...</span>
+        </div>
+
+        <!-- 6-digit OTP Input Group -->
+        <div class="otp-input-section">
+          <label class="otp-input-label">Enter 6-Digit Security Code</label>
+          <div class="otp-digits-wrapper" id="otp-digits-container">
+            <input type="text" class="otp-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" data-index="0" aria-label="Digit 1">
+            <input type="text" class="otp-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" data-index="1" aria-label="Digit 2">
+            <input type="text" class="otp-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" data-index="2" aria-label="Digit 3">
+            <span class="otp-dash">&ndash;</span>
+            <input type="text" class="otp-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" data-index="3" aria-label="Digit 4">
+            <input type="text" class="otp-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" data-index="4" aria-label="Digit 5">
+            <input type="text" class="otp-digit-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" data-index="5" aria-label="Digit 6">
+          </div>
+          <div id="delete-otp-error" class="otp-error-msg" hidden></div>
+        </div>
+
+        <!-- Timer & Resend Option -->
+        <div class="otp-footer-controls">
+          <div class="otp-timer-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span id="otp-countdown">Expires in 10:00</span>
+          </div>
+          <button type="button" id="resend-otp-btn" class="resend-otp-btn" disabled>
+            Resend Code
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer delete-modal-footer">
+        <button type="button" id="cancel-delete-btn" class="secondary-btn">Cancel</button>
+        <button type="button" id="confirm-delete-btn" class="danger-btn confirm-delete-btn" disabled>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          <span id="confirm-delete-text">Confirm &amp; Delete</span>
+        </button>
       </div>
     </div>
   </dialog>
