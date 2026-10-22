@@ -80,8 +80,8 @@ export function initCustomCursor() {
     isHoveringCard = false;
     isHoveringInteractive = false;
     isHoveringInput = false;
-    cursorRing.classList.remove('cursor-hover-card', 'cursor-hover-interactive', 'cursor-hover-input');
-    cursorDot.classList.remove('cursor-hover-card', 'cursor-hover-interactive', 'cursor-hover-input');
+    cursorRing.classList.remove('cursor-hover-card', 'cursor-hover-interactive', 'cursor-hover-input', 'cursor-hover-heart');
+    cursorDot.classList.remove('cursor-hover-card', 'cursor-hover-interactive', 'cursor-hover-input', 'cursor-hover-heart');
   }
 
   // Track mouse coordinates
@@ -133,6 +133,17 @@ export function initCustomCursor() {
     const target = e.target;
     if (!target || !target.closest) return;
 
+    // 0. Favorite heart buttons
+    const favBtn = target.closest('.card-fav-btn, .lb-fav-btn');
+    if (favBtn) {
+      resetHoverStates();
+      isHoveringInteractive = true;
+      if (cursorText) cursorText.textContent = '❤️';
+      cursorRing.classList.add('cursor-hover-interactive', 'cursor-hover-heart');
+      cursorDot.classList.add('cursor-hover-interactive', 'cursor-hover-heart');
+      return;
+    }
+
     // 1. Photo card or Lightbox image
     const card = target.closest('.photo-card, .photo-thumb-container, .lightbox-image');
     if (card) {
@@ -167,7 +178,7 @@ export function initCustomCursor() {
     }
 
     // 4. Buttons, links, pills, tabs, layout switches, close buttons
-    const interactive = target.closest('button, a, select, .pill, .icon-btn, .layout-btn, .close-btn, .tab-btn, .primary-btn, .secondary-btn, .quick-search-pill');
+    const interactive = target.closest('button, a, select, .pill, .icon-btn, .layout-btn, .close-btn, .tab-btn, .primary-btn, .secondary-btn, .quick-search-pill, .back-to-top-btn, .sound-toggle-btn');
     if (interactive) {
       resetHoverStates();
       isHoveringInteractive = true;

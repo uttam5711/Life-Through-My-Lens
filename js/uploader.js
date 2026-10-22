@@ -3,7 +3,7 @@
  * Handles client-side compression, direct GitHub API commits, and local export.
  */
 
-import { state, applyFilters, showToast, loadPhotos } from './gallery.js';
+import { state, applyFilters, showToast, loadPhotos } from './gallery.js?v=20261021b';
 
 // DOM Elements
 const openUploadBtn = document.getElementById('open-upload-btn');
