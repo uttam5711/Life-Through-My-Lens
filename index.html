@@ -563,9 +563,13 @@
               </div>
 
               <div class="form-group">
-                <label for="google-sheet-url">Google Sheet Web App URL (Optional - For Visitor Log)</label>
-                <input type="url" id="google-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
-                <span class="settings-hint">Visitor names &amp; emails are automatically appended to this Google Sheet.</span>
+                <label for="google-sheet-url">Google Sheet Web App URL (For Visitor Log)</label>
+                <div class="token-input-wrapper">
+                  <input type="url" id="google-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
+                  <button type="button" id="test-sheet-btn" class="toggle-vis-btn" style="width: auto; padding: 0 14px; white-space: nowrap;">Test Sheet</button>
+                </div>
+                <span class="settings-hint">New visitor names &amp; emails are automatically appended to this Google Sheet.</span>
+                <span id="sheet-test-result" style="display:block; font-size: 0.8rem; margin-top: 5px; font-weight: 500;"></span>
               </div>
             </div>
 
@@ -839,6 +843,13 @@
 
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Visitor Log Configuration (Google Sheet Web App URL) -->
+  <script>
+    // Optional global fallback: Paste your Google Apps Script Web App URL here
+    // or configure it inside the ?admin Studio Settings.
+    window.GALLERY_SHEET_URL = '';
+  </script>
 
   <!-- Scripts -->
   <script type="module" src="js/gallery.js?v=20261021b"></script>

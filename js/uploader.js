@@ -3,7 +3,7 @@
  * Handles client-side compression, direct GitHub API commits, and local export.
  */
 
-import { state, applyFilters, showToast, loadPhotos, closeLightbox } from './gallery.js?v=20261021b';
+import { state, applyFilters, showToast, loadPhotos, closeLightbox, getGoogleSheetUrl } from './gallery.js?v=20261021b';
 
 // DOM Elements
 const openUploadBtn = document.getElementById('open-upload-btn');
@@ -45,6 +45,8 @@ const ghRepoInput = document.getElementById('gh-repo');
 const ghBranchInput = document.getElementById('gh-branch');
 const ghTokenInput = document.getElementById('gh-token');
 const ghSheetUrlInput = document.getElementById('google-sheet-url');
+const testSheetBtn = document.getElementById('test-sheet-btn');
+const sheetTestResult = document.getElementById('sheet-test-result');
 const toggleTokenBtn = document.getElementById('toggle-token-visibility');
 const githubSubmitBtn = document.getElementById('github-submit-btn');
 const uploadStatus = document.getElementById('upload-status');
@@ -123,7 +125,7 @@ function loadSavedGithubSettings() {
   if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gh_gallery_repo') || 'Life-Through-My-Lens';
   if (ghBranchInput) ghBranchInput.value = localStorage.getItem('gh_gallery_branch') || 'main';
   if (ghTokenInput) ghTokenInput.value = localStorage.getItem('gh_gallery_token') || '';
-  if (ghSheetUrlInput) ghSheetUrlInput.value = localStorage.getItem('gh_gallery_sheet_url') || '';
+  if (ghSheetUrlInput) ghSheetUrlInput.value = localStorage.getItem('gh_gallery_sheet_url') || getGoogleSheetUrl();
 }
 
 function saveGithubSettings() {
@@ -250,6 +252,73 @@ function setupUploaderEvents() {
       toggleTokenBtn.textContent = 'Show';
     }
   });
+
+  // Test Google Sheet connection
+  if (testSheetBtn) {
+    testSheetBtn.addEventListener('click', async () => {
+      const url = ghSheetUrlInput ? ghSheetUrlInput.value.trim() : '';
+      if (!url) {
+        if (sheetTestResult) {
+          sheetTestResult.textContent = '❌ Please enter a Google Apps Script Web App URL first.';
+          sheetTestResult.style.color = '#ef4444';
+        }
+        showToast('Please enter your Google Apps Script URL', 'error');
+        return;
+      }
+
+      if (!url.includes('script.google.com/macros/s/')) {
+        if (sheetTestResult) {
+          sheetTestResult.textContent = '⚠️ URL must be a Google Apps Script Web App URL ending in /exec';
+          sheetTestResult.style.color = '#f59e0b';
+        }
+        showToast('Invalid Apps Script Web App URL format', 'error');
+        return;
+      }
+
+      saveGithubSettings();
+
+      if (sheetTestResult) {
+        sheetTestResult.textContent = '⏳ Sending test visitor entry to Google Sheet...';
+        sheetTestResult.style.color = '#38bdf8';
+      }
+
+      const testPayload = {
+        timestamp: new Date().toLocaleString(),
+        name: 'Test Visitor (Admin Diagnostic)',
+        email: 'test@example.com',
+        photoTitle: 'Connection Test from Admin Studio',
+        userAgent: navigator.userAgent
+      };
+
+      try {
+        // Send dual dispatch: FormData POST + GET beacon
+        const fd = new FormData();
+        for (const k in testPayload) fd.append(k, testPayload[k]);
+
+        fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: fd
+        }).catch(() => {});
+
+        const query = new URLSearchParams(testPayload).toString();
+        const beaconUrl = url + (url.includes('?') ? '&' : '?') + query;
+        const img = new Image();
+        img.src = beaconUrl;
+
+        if (sheetTestResult) {
+          sheetTestResult.textContent = '✅ Dispatched! Check your Google Sheet to verify the "Test Visitor" row appeared.';
+          sheetTestResult.style.color = '#22c55e';
+        }
+        showToast('Test visitor dispatched to Google Sheet!', 'success');
+      } catch (err) {
+        if (sheetTestResult) {
+          sheetTestResult.textContent = '⚠️ Dispatched. Please check your Google Sheet.';
+          sheetTestResult.style.color = '#f59e0b';
+        }
+      }
+    });
+  }
 
   // Form input changes update JSON preview
   [photoTitleInput, photoCategorySelect, customCategoryInput, photoDateInput, photoLocationInput, photoCameraInput, photoDescInput, photoTagsInput].forEach(el => {

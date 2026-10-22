@@ -14,6 +14,12 @@ export const state = {
   currentLightboxIndex: 0,
 };
 
+// Configurable Google Sheet Web App URL for visitor registry:
+export const DEFAULT_GOOGLE_SHEET_URL = '';
+export function getGoogleSheetUrl() {
+  return DEFAULT_GOOGLE_SHEET_URL || localStorage.getItem('gh_gallery_sheet_url') || (typeof window !== 'undefined' && window.GALLERY_SHEET_URL) || '';
+}
+
 // DOM Elements
 const galleryContainer = document.getElementById('gallery-container');
 const categoryPillsWrapper = document.getElementById('category-pills');
@@ -1254,22 +1260,34 @@ function setupUnlockModalEvents() {
         : null;
       const photoTitle = photo ? (photo.title || 'Untitled Click') : 'Gallery Browse';
 
-      // 1. Post to Google Sheet Web App if configured
-      const sheetUrl = localStorage.getItem('gh_gallery_sheet_url') || '';
+      // 1. Post to Google Sheet Web App (supports both POST FormData & GET query)
+      const sheetUrl = getGoogleSheetUrl();
       if (sheetUrl) {
+        const payload = {
+          timestamp: new Date().toLocaleString(),
+          name: name,
+          email: email,
+          photoTitle: photoTitle,
+          userAgent: navigator.userAgent
+        };
+
+        // Method A: POST via FormData (works with e.parameter in Google Apps Script)
         try {
+          const fd = new FormData();
+          for (const k in payload) fd.append(k, payload[k]);
           fetch(sheetUrl, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              timestamp: new Date().toLocaleString(),
-              name: name,
-              email: email,
-              photoTitle: photoTitle,
-              userAgent: navigator.userAgent
-            })
-          }).catch(err => console.warn('Google Sheet log notice:', err));
+            body: fd
+          }).catch(err => console.warn('Google Sheet POST notice:', err));
+        } catch (err) {}
+
+        // Method B: GET query fallback (works with doGet(e) in Google Apps Script without CORS blocks)
+        try {
+          const query = new URLSearchParams(payload).toString();
+          const beaconUrl = sheetUrl + (sheetUrl.includes('?') ? '&' : '?') + query;
+          const img = new Image();
+          img.src = beaconUrl;
         } catch (err) {}
       }
 
