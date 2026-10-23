@@ -226,6 +226,7 @@ body {
   letter-spacing: -0.02em;
   background: var(--accent-gradient);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   white-space: nowrap;
 }
@@ -1071,6 +1072,7 @@ body {
   color: #cbd5e1;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin-bottom: 0.5rem;
@@ -2831,6 +2833,7 @@ button:disabled,
   letter-spacing: -0.02em;
   background: linear-gradient(135deg, #f1f5f9 0%, #10b981 50%, #06b6d4 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 0.25rem;
 }
@@ -2838,6 +2841,7 @@ button:disabled,
 [data-theme="light"] .preloader-title {
   background: linear-gradient(135deg, #0f172a 0%, #059669 60%, #0891b2 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -2923,6 +2927,7 @@ button:disabled,
   background: linear-gradient(135deg, var(--text-main) 0%, #10b981 35%, #06b6d4 70%, var(--text-main) 100%);
   background-size: 250% auto;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmerHeading 9s ease infinite;
 }
