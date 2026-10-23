@@ -151,27 +151,22 @@ let activePhotoBeingEdited = null; // Photo object currently being edited in edi
 
 /**
  * Admin / Owner access control
- * Visitors see only photos. Admin features appear when ?admin is supplied
- * and persist for the active browser session via sessionStorage.
+ * Options appear ONLY when ?admin is present in the URL.
+ * Normal visitors or refreshing without ?admin hides upload, edit, and delete options.
  */
 function checkAdminAccess() {
   const urlParams = new URLSearchParams(window.location.search);
-  const paramAdmin = urlParams.has('admin') && urlParams.get('admin') !== 'false' && urlParams.get('admin') !== 'logout';
-  const sessionAdmin = sessionStorage.getItem('gallery_admin_active') === '1' || sessionStorage.getItem('gallery_admin_active') === 'true' || localStorage.getItem('gallery_admin_active') === 'true';
+  const isAdmin = urlParams.has('admin') &&
+                  urlParams.get('admin') !== 'false' &&
+                  urlParams.get('admin') !== '0' &&
+                  urlParams.get('admin') !== 'logout' &&
+                  urlParams.get('admin') !== 'no';
 
-  if (urlParams.get('admin') === 'logout') {
+  // Purge lingering legacy storage keys so refresh behavior is 100% driven by URL
+  try {
     sessionStorage.removeItem('gallery_admin_active');
     localStorage.removeItem('gallery_admin_active');
-  } else if (paramAdmin) {
-    sessionStorage.setItem('gallery_admin_active', 'true');
-    localStorage.setItem('gallery_admin_active', 'true');
-  }
-
-  const isAdmin = (paramAdmin || sessionAdmin) && urlParams.get('admin') !== 'logout';
-
-  // Upload Photo is always available to the owner/user
-  if (openUploadBtn) openUploadBtn.hidden = false;
-  if (footerUploadBtn) footerUploadBtn.hidden = false;
+  } catch (e) {}
 
   const lbDeleteBtn = document.getElementById('lb-delete-btn');
   const lbEditBtn = document.getElementById('lb-edit-btn');
@@ -179,19 +174,15 @@ function checkAdminAccess() {
   if (isAdmin) {
     document.documentElement.classList.add('admin-mode');
     document.body.classList.add('admin-mode');
+    if (openUploadBtn) openUploadBtn.hidden = false;
+    if (footerUploadBtn) footerUploadBtn.hidden = false;
     if (lbDeleteBtn) lbDeleteBtn.hidden = false;
     if (lbEditBtn) lbEditBtn.hidden = false;
-
-    // Clean URL without losing session
-    if (urlParams.has('admin')) {
-      urlParams.delete('admin');
-      const remainingQuery = urlParams.toString();
-      const cleanUrl = window.location.pathname + (remainingQuery ? '?' + remainingQuery : '') + window.location.hash;
-      window.history.replaceState(null, '', cleanUrl);
-    }
   } else {
     document.documentElement.classList.remove('admin-mode');
     document.body.classList.remove('admin-mode');
+    if (openUploadBtn) openUploadBtn.hidden = true;
+    if (footerUploadBtn) footerUploadBtn.hidden = true;
     if (lbDeleteBtn) lbDeleteBtn.hidden = true;
     if (lbEditBtn) lbEditBtn.hidden = true;
   }
@@ -479,6 +470,11 @@ function setupUploaderEvents() {
       openModal(uploadDialog);
     });
   }
+
+  // Re-check admin status if URL changes via back/forward navigation
+  window.addEventListener('popstate', () => {
+    checkAdminAccess();
+  });
 
   // Modal close
   if (closeUploadBtn) closeUploadBtn.addEventListener('click', () => closeModal(uploadDialog));

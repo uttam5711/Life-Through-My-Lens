@@ -38,19 +38,18 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <script>
-    // Early admin check so admin UI renders instantly without flash & preserves session
+    // Early admin check: admin UI renders ONLY when ?admin is in the URL.
+    // Refreshing without ?admin removes admin options.
     (function() {
       try {
         var p = new URLSearchParams(window.location.search);
-        if (p.has('admin')) {
-          if (p.get('admin') === 'logout' || p.get('admin') === 'false') {
-            sessionStorage.removeItem('gallery_admin_active');
-          } else {
-            sessionStorage.setItem('gallery_admin_active', 'true');
-          }
-        }
-        if (sessionStorage.getItem('gallery_admin_active') === 'true') {
+        var isAdmin = p.has('admin') && p.get('admin') !== 'false' && p.get('admin') !== '0' && p.get('admin') !== 'logout' && p.get('admin') !== 'no';
+        sessionStorage.removeItem('gallery_admin_active');
+        localStorage.removeItem('gallery_admin_active');
+        if (isAdmin) {
           document.documentElement.classList.add('admin-mode');
+        } else {
+          document.documentElement.classList.remove('admin-mode');
         }
       } catch (e) {}
     })();
@@ -193,8 +192,8 @@
           </svg>
         </button>
 
-        <!-- Upload Button -->
-        <button id="open-upload-btn" class="primary-btn upload-cta" title="Upload new photos">
+        <!-- Upload Button (Admin only) -->
+        <button id="open-upload-btn" class="primary-btn upload-cta admin-only" title="Upload new photos" hidden>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -375,7 +374,7 @@
       </div>
       <div class="footer-links">
         <a href="#category-pills" class="footer-link">Back to Top ↑</a>
-        <button id="footer-upload-btn" class="footer-link-btn" title="Upload a Photo">Upload a Photo</button>
+        <button id="footer-upload-btn" class="footer-link-btn admin-only" title="Upload a Photo" hidden>Upload a Photo</button>
       </div>
     </div>
   </footer>
