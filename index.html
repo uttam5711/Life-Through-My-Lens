@@ -31,7 +31,7 @@
   </script>
 
   <meta name="theme-color" content="#0f172a">
-  <link rel="stylesheet" href="css/styles.css?v=20261022_powertools">
+  <link rel="stylesheet" href="css/styles.css?v=20261023_studio_fix">
 
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -193,8 +193,8 @@
           </svg>
         </button>
 
-        <!-- Upload Button (Only shown in admin/owner mode) -->
-        <button id="open-upload-btn" class="primary-btn upload-cta admin-only" hidden>
+        <!-- Upload Button -->
+        <button id="open-upload-btn" class="primary-btn upload-cta" title="Upload new photos">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -375,7 +375,7 @@
       </div>
       <div class="footer-links">
         <a href="#category-pills" class="footer-link">Back to Top ↑</a>
-        <button id="footer-upload-btn" class="footer-link-btn admin-only" hidden>Upload a Photo</button>
+        <button id="footer-upload-btn" class="footer-link-btn" title="Upload a Photo">Upload a Photo</button>
       </div>
     </div>
   </footer>
@@ -540,8 +540,8 @@
   <!-- ========================================================
        MODAL 2: UPLOAD STUDIO (<dialog>)
        ======================================================== -->
-  <dialog id="upload-dialog" class="upload-modal">
-    <div class="modal-card">
+  <dialog id="upload-dialog" class="upload-modal" closedby="any" aria-labelledby="upload-dialog-title">
+    <div class="modal-card upload-studio-card">
       <div class="modal-header">
         <div class="modal-title-group">
           <div class="modal-icon">
@@ -552,75 +552,44 @@
             </svg>
           </div>
           <div>
-            <h3 class="modal-title">Upload Photo</h3>
-            <p class="modal-subtitle">Add a new moment to your gallery</p>
+            <h3 class="modal-title" id="upload-dialog-title">Photo Upload Studio</h3>
+            <p class="modal-subtitle">Add new moments to your gallery</p>
           </div>
         </div>
-        <button id="close-upload-btn" class="close-btn" aria-label="Close dialog">&times;</button>
+        <button type="button" id="close-upload-btn" class="close-btn" aria-label="Close dialog">&times;</button>
       </div>
 
       <!-- Upload Method Tabs -->
       <div class="upload-tabs">
-        <button class="tab-btn active" data-tab="github-tab">
+        <button type="button" class="tab-btn active" data-tab="github-tab" id="tab-btn-github">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
           </svg>
-          Direct GitHub Upload
+          Direct GitHub Cloud Upload
         </button>
-        <button class="tab-btn" data-tab="local-tab">
+        <button type="button" class="tab-btn" data-tab="local-tab" id="tab-btn-local">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
           </svg>
-          Local / Manual Export
+          Local Gallery / Export
         </button>
       </div>
 
-      <div class="modal-body">
-        
-        <!-- Image Dropzone & File Input (Supports Multi-Photo Batch Selection & iPhone HEIF/HEIC) -->
-        <div class="dropzone" id="dropzone">
-          <input type="file" id="file-input" accept="image/*,.heic,.heif,image/heic,image/heif" multiple class="file-input-hidden">
-          <div class="dropzone-empty" id="dropzone-empty">
-            <div class="dropzone-icon">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-            </div>
-            <p class="dropzone-prompt"><strong>Click to browse</strong> or drag &amp; drop 1 to 10 photos here</p>
-            <p class="dropzone-hint">PNG, JPG, WebP, HEIC/HEIF (iPhone) • In-browser auto-conversion &amp; batch upload supported</p>
-            <button type="button" id="demo-batch-btn" class="batch-demo-pill" title="Test batch upload with 3 sample photos">
-              <span>⚡ Load Demo 3-Photo Batch</span>
-            </button>
-          </div>
+      <!-- Main Form Wrapper -->
+      <form id="upload-form" class="upload-form-wrapper">
+        <div class="modal-body upload-modal-body">
           
-          <div class="dropzone-preview" id="dropzone-preview" hidden>
-            <img id="preview-img" src="" alt="Selected preview">
-            <div class="preview-overlay">
-              <span id="preview-info" class="preview-info">1200 x 800 • 240 KB</span>
-              <div class="preview-actions">
-                <button type="button" id="single-crop-btn" class="crop-preset-trigger-btn" title="Open Crop & Film Presets Studio">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
-                  <span>🎨 Crop &amp; Presets</span>
-                </button>
-                <button type="button" id="remove-file-btn" class="remove-btn">Change Photo</button>
-              </div>
-            </div>
-          </div>
-        </div>
+          <!-- Inline Alert / Status Banner -->
+          <div id="upload-inline-feedback" class="upload-inline-feedback" hidden></div>
 
-        <!-- Metadata Form -->
-        <form id="upload-form" class="upload-form">
-
-          <!-- BATCH UPLOAD QUEUE (Shown when 2+ photos dropped) -->
+          <!-- BATCH UPLOAD QUEUE (Shown when 2+ photos selected) -->
           <div id="batch-upload-section" class="batch-upload-section" hidden>
             <div class="batch-header-bar">
               <div class="batch-title-group">
                 <span class="batch-badge" id="batch-count-badge">0 Photos</span>
-                <span class="batch-subtitle">Batch Upload Queue: review details for each photo before publishing</span>
+                <span class="batch-subtitle">Batch Review: verify details for each photo before uploading</span>
               </div>
               <button type="button" id="batch-toggle-global-btn" class="batch-action-btn">
                 <span>⚡ Quick Bulk Settings</span>
@@ -647,7 +616,7 @@
                 </div>
                 <div class="form-group">
                   <label>Location for All</label>
-                  <input type="text" id="batch-global-location" placeholder="e.g. Junagadh or 23.04, 72.51">
+                  <input type="text" id="batch-global-location" placeholder="e.g. Junagadh or GPS">
                 </div>
                 <div class="form-group">
                   <label>Camera for All</label>
@@ -663,149 +632,239 @@
             </div>
           </div>
 
-          <!-- SINGLE PHOTO METADATA SECTION -->
-          <div id="single-upload-section">
-            <div class="form-row">
-              <div class="form-group flex-2">
-                <label for="photo-title">Title <span class="required">*</span></label>
-                <input type="text" id="photo-title" placeholder="e.g. Sunset over the rooftop" required>
+          <!-- 2-COLUMN STUDIO LAYOUT FOR SINGLE PHOTO -->
+          <div id="single-upload-section" class="upload-studio-grid">
+            
+            <!-- LEFT COLUMN: PHOTO DROPZONE & PREVIEW -->
+            <div class="upload-media-column">
+              <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Click to browse or drop photos">
+                <input type="file" id="file-input" accept="image/*,.heic,.heif,image/heic,image/heif" multiple class="file-input-hidden" aria-label="Choose photo file">
+                
+                <div class="dropzone-empty" id="dropzone-empty">
+                  <div class="dropzone-icon">
+                    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                  </div>
+                  <p class="dropzone-prompt"><strong>Click to browse</strong> or drag photos here</p>
+                  <p class="dropzone-hint">PNG, JPG, WebP, iPhone HEIC • Auto-optimized</p>
+                  <button type="button" id="demo-batch-btn" class="batch-demo-pill" title="Test batch upload with 3 sample photos">
+                    <span>⚡ Try 3-Photo Demo Batch</span>
+                  </button>
+                </div>
+                
+                <div class="dropzone-preview" id="dropzone-preview" hidden>
+                  <div class="preview-img-container">
+                    <img id="preview-img" src="" alt="Selected photo preview">
+                  </div>
+                  <div class="preview-overlay">
+                    <span id="preview-info" class="preview-info">1600 × 1067 • 280 KB</span>
+                    <div class="preview-actions">
+                      <button type="button" id="single-crop-btn" class="crop-preset-trigger-btn" title="Open Crop & Film Presets Studio">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
+                        <span>🎨 Crop &amp; Presets</span>
+                      </button>
+                      <button type="button" id="remove-file-btn" class="remove-btn">Change Photo</button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <div class="form-group flex-1">
-                <label for="photo-category">Category <span class="required">*</span></label>
-                <select id="photo-category" required>
-                  <option value="Random Clicks">Random Clicks</option>
-                  <option value="Personal & Moments">Personal & Moments</option>
-                  <option value="Street & City">Street & City</option>
-                  <option value="Nature & Outdoors">Nature & Outdoors</option>
-                  <option value="Portraits">Portraits</option>
-                  <option value="__custom__">+ Add Custom Category...</option>
-                </select>
+
+              <!-- Quick Feature Tip -->
+              <div class="upload-tip-card">
+                <div class="tip-icon">💡</div>
+                <p class="tip-text">Photos are auto-compressed to retina quality (< 450 KB) so your gallery loads instantaneously worldwide.</p>
               </div>
             </div>
 
-            <div class="form-group" id="custom-category-group" hidden>
-              <label for="custom-category-input">New Category Name</label>
-              <input type="text" id="custom-category-input" placeholder="e.g. Travel 2026">
+            <!-- RIGHT COLUMN: METADATA FORM FIELDS -->
+            <div class="upload-fields-column">
+              <div class="form-row">
+                <div class="form-group flex-2">
+                  <label for="photo-title">Photo Title <span class="required">*</span></label>
+                  <input type="text" id="photo-title" placeholder="e.g. Sunset over the rooftop" required>
+                </div>
+                
+                <div class="form-group flex-1">
+                  <label for="photo-category">Category <span class="required">*</span></label>
+                  <select id="photo-category" required>
+                    <option value="Random Clicks">Random Clicks</option>
+                    <option value="Personal & Moments">Personal & Moments</option>
+                    <option value="Street & City">Street & City</option>
+                    <option value="Nature & Outdoors">Nature & Outdoors</option>
+                    <option value="Portraits">Portraits</option>
+                    <option value="__custom__">+ Add Custom Category...</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group" id="custom-category-group" hidden>
+                <label for="custom-category-input">New Category Name</label>
+                <input type="text" id="custom-category-input" placeholder="e.g. Travel 2026">
+              </div>
+
+              <div class="form-row triple-row">
+                <div class="form-group flex-1">
+                  <label for="photo-date">Date Taken</label>
+                  <input type="date" id="photo-date">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="photo-location">Location / Place</label>
+                  <input type="text" id="photo-location" placeholder="e.g. Ahmedabad or GPS">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="photo-camera">Device / Camera</label>
+                  <input type="text" id="photo-camera" placeholder="e.g. iPhone 16 Pro">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="photo-desc">Caption / Story</label>
+                <textarea id="photo-desc" rows="2" placeholder="Write a brief story or memory about this picture..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="photo-tags">Tags (comma-separated)</label>
+                <input type="text" id="photo-tags" placeholder="e.g. random, evening, memories, sky">
+              </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group flex-1">
-                <label for="photo-date">Date Taken</label>
-                <input type="date" id="photo-date">
-              </div>
-              <div class="form-group flex-1">
-                <label for="photo-location">Location / Place</label>
-                <input type="text" id="photo-location" placeholder="e.g. Ahmedabad or 23.0439, 72.5168">
-              </div>
-              <div class="form-group flex-1">
-                <label for="photo-camera">Device / Camera</label>
-                <input type="text" id="photo-camera" placeholder="e.g. iPhone, Sony, Pixel">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="photo-desc">Caption / Story</label>
-              <textarea id="photo-desc" rows="2" placeholder="Write a short story or memory about this picture..."></textarea>
-            </div>
-
-            <div class="form-group">
-              <label for="photo-tags">Tags (comma-separated)</label>
-              <input type="text" id="photo-tags" placeholder="e.g. random, evening, memories, sky">
-            </div>
           </div>
 
-          <!-- TAB 1: GITHUB DIRECT SETTINGS -->
+          <!-- TAB 1 CONTENT: GITHUB DIRECT CLOUD SYNC CONFIGURATION -->
           <div id="github-tab-content" class="tab-content active">
             <div class="github-settings-box">
               <div class="github-box-header">
-                <strong>GitHub Direct Sync Configuration</strong>
-                <a href="#github-token-guide" id="token-help-link" class="help-link">How to get a free Token?</a>
-              </div>
-              <p class="settings-hint">Your token stays safely in your own browser's localStorage. It directly commits images and updates your site on GitHub!</p>
-              
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label for="gh-owner">GitHub Username <span class="required">*</span></label>
-                  <input type="text" id="gh-owner" placeholder="e.g. uttamsangani">
+                <div class="github-status-pill">
+                  <span class="status-dot online"></span>
+                  <span>Target: <strong id="gh-target-repo-text">uttam5711/Life-Through-My-Lens</strong> (branch: <code>main</code>)</span>
                 </div>
-                <div class="form-group flex-1">
-                  <label for="gh-repo">Repository Name <span class="required">*</span></label>
-                  <input type="text" id="gh-repo" placeholder="e.g. personal-photo-gallery">
-                </div>
-                <div class="form-group flex-1">
-                  <label for="gh-branch">Branch</label>
-                  <input type="text" id="gh-branch" value="main">
-                </div>
+                <button type="button" id="toggle-gh-config-btn" class="toggle-config-btn">
+                  <span>⚙️ Settings &amp; Token</span>
+                </button>
               </div>
 
-              <div class="form-group">
-                <label for="gh-token">GitHub Personal Access Token (PAT) <span class="required">*</span></label>
-                <div class="token-input-wrapper">
-                  <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-                  <button type="button" id="toggle-token-visibility" class="toggle-vis-btn">Show</button>
+              <!-- Collapsible GitHub Settings Drawer -->
+              <div id="gh-config-drawer" class="gh-config-drawer">
+                <div class="gh-drawer-intro">
+                  <p class="settings-hint">Your GitHub Token is stored safely in your browser's <code>localStorage</code>. It commits photos directly to <code>images/</code> and updates <code>data/photos.json</code> via the GitHub API.</p>
+                  <a href="#github-token-guide" id="token-help-link" class="help-link">How to get a free Token?</a>
                 </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="gh-owner">GitHub Username <span class="required">*</span></label>
+                    <input type="text" id="gh-owner" placeholder="e.g. uttam5711" value="uttam5711">
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="gh-repo">Repository Name <span class="required">*</span></label>
+                    <input type="text" id="gh-repo" placeholder="e.g. Life-Through-My-Lens" value="Life-Through-My-Lens">
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="gh-branch">Branch</label>
+                    <input type="text" id="gh-branch" value="main">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="gh-token">GitHub Personal Access Token (PAT) <span class="required">*</span></label>
+                  <div class="token-input-wrapper">
+                    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx or github_pat_...">
+                    <button type="button" id="toggle-token-visibility" class="toggle-vis-btn">Show</button>
+                  </div>
+                  <div class="token-test-row">
+                    <button type="button" id="test-gh-token-btn" class="secondary-btn small-btn">
+                      <span>✓ Test GitHub Token</span>
+                    </button>
+                    <span id="gh-token-test-result" class="gh-token-test-result"></span>
+                  </div>
+                </div>
+
+                <!-- Advanced Integration: Visitor Log Google Sheet (Kept safe & accessible) -->
+                <details class="gh-advanced-details">
+                  <summary class="gh-advanced-summary">Advanced: Visitor Log Google Sheet Sync</summary>
+                  <div class="form-group" style="margin-top: 0.65rem;">
+                    <label for="google-sheet-url">Google Sheet Web App URL</label>
+                    <div class="token-input-wrapper">
+                      <input type="url" id="google-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
+                      <button type="button" id="test-sheet-btn" class="toggle-vis-btn" style="width: auto; padding: 0 14px; white-space: nowrap;">Test Sheet</button>
+                    </div>
+                    <span class="settings-hint">Visitor names &amp; emails are logged to this sheet when visitors unlock the guestbook.</span>
+                    <span id="sheet-test-result" style="display:block; font-size: 0.8rem; margin-top: 5px; font-weight: 500;"></span>
+                  </div>
+                </details>
               </div>
 
-              <div class="form-group">
-                <label for="google-sheet-url">Google Sheet Web App URL (For Visitor Log)</label>
-                <div class="token-input-wrapper">
-                  <input type="url" id="google-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
-                  <button type="button" id="test-sheet-btn" class="toggle-vis-btn" style="width: auto; padding: 0 14px; white-space: nowrap;">Test Sheet</button>
-                </div>
-                <span class="settings-hint">New visitor names &amp; emails are automatically appended to this Google Sheet.</span>
-                <span id="sheet-test-result" style="display:block; font-size: 0.8rem; margin-top: 5px; font-weight: 500;"></span>
-              </div>
-            </div>
-
-            <!-- Upload Progress / Status -->
-            <div id="upload-status" class="upload-status" hidden>
-              <div class="status-spinner"></div>
-              <span id="upload-status-msg">Compressing photo & uploading to GitHub...</span>
-            </div>
-
-            <div class="modal-footer">
-              <button type="button" id="cancel-upload-btn" class="secondary-btn">Cancel</button>
-              <button type="submit" id="github-submit-btn" class="primary-btn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <span id="github-submit-text">Publish Photo to GitHub</span>
-              </button>
             </div>
           </div>
 
-          <!-- TAB 2: LOCAL / MANUAL EXPORT -->
+          <!-- TAB 2 CONTENT: LOCAL / IN-BROWSER SAVE & EXPORT -->
           <div id="local-tab-content" class="tab-content" hidden>
             <div class="local-export-box">
-              <p>Prefer managing files on your computer with Git? This tab will download your compressed photo and provide the updated <code>data/photos.json</code> to save into your project folder.</p>
+              <div class="local-mode-banner">
+                <div class="local-mode-icon">💾</div>
+                <div>
+                  <strong>Instant In-Browser Gallery Save</strong>
+                  <p>Save photos directly into this browser. They will appear immediately in your gallery, persist across reloads, and can be synced to GitHub anytime!</p>
+                </div>
+              </div>
               
               <div class="export-actions">
                 <button type="button" id="download-photo-file-btn" class="secondary-btn" disabled>
-                  1. Download Compressed Photo
+                  <span>1. Download Compressed Photo (.jpg)</span>
                 </button>
                 <button type="button" id="download-json-file-btn" class="secondary-btn" disabled>
-                  2. Download Updated photos.json
+                  <span>2. Download Updated photos.json</span>
                 </button>
               </div>
 
               <div class="code-preview-group">
                 <label>Generated JSON entry for <code>data/photos.json</code>:</label>
-                <pre><code id="json-snippet-preview">// Fill form above and pick an image to preview JSON entry</code></pre>
-                <button type="button" id="copy-json-btn" class="copy-btn">Copy JSON</button>
+                <pre><code id="json-snippet-preview">// Select a photo to preview JSON metadata entry</code></pre>
+                <button type="button" id="copy-json-btn" class="copy-btn">Copy JSON Entry</button>
               </div>
-            </div>
-
-            <div class="modal-footer">
-              <button type="button" id="close-local-btn" class="secondary-btn">Done</button>
             </div>
           </div>
 
-        </form>
+        </div>
 
-      </div>
+        <!-- PINNED MODAL FOOTER (Always visible at the bottom of the dialog) -->
+        <div class="modal-footer upload-modal-footer">
+          <!-- Upload Progress / Status Indicator -->
+          <div id="upload-status" class="upload-status" hidden>
+            <div class="status-spinner"></div>
+            <span id="upload-status-msg">Compressing photo & uploading to GitHub...</span>
+          </div>
+
+          <div class="footer-button-group">
+            <button type="button" id="cancel-upload-btn" class="secondary-btn">Cancel</button>
+            <button type="button" id="close-local-btn" class="secondary-btn" hidden>Done</button>
+            
+            <!-- Save to Local Gallery Button (Always available for instant offline/browser save) -->
+            <button type="button" id="save-local-btn" class="secondary-btn local-save-btn">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span>Save Photo to Gallery</span>
+            </button>
+
+            <!-- Publish to GitHub Cloud Button (active in GitHub tab) -->
+            <button type="submit" id="github-submit-btn" class="primary-btn gh-submit-btn">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span id="github-submit-text">Publish Photo to GitHub</span>
+            </button>
+          </div>
+        </div>
+
+      </form>
     </div>
   </dialog>
 
@@ -1261,9 +1320,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
-  <script type="module" src="js/gallery.js?v=20261022_powertools"></script>
-  <script type="module" src="js/uploader.js?v=20261022_powertools"></script>
-  <script type="module" src="js/cursor.js?v=20261022_powertools"></script>
+  <script type="module" src="js/gallery.js?v=20261023_studio_fix"></script>
+  <script type="module" src="js/uploader.js?v=20261023_studio_fix"></script>
+  <script type="module" src="js/cursor.js?v=20261023_studio_fix"></script>
 </body>
 </html>
 

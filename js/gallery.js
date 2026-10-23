@@ -448,14 +448,71 @@ function initSoundToggle() {
 }
 
 /**
- * Fetch photos from data/photos.json
+ * Local in-browser photos storage helpers
+ */
+export function getLocalPhotos() {
+  try {
+    const raw = localStorage.getItem('gallery_local_photos');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn('Failed to parse local photos:', e);
+    return [];
+  }
+}
+
+export function saveLocalPhoto(photo) {
+  try {
+    let local = getLocalPhotos();
+    local = local.filter(p => String(p.id) !== String(photo.id));
+    local.unshift(photo);
+    while (local.length > 0) {
+      try {
+        localStorage.setItem('gallery_local_photos', JSON.stringify(local));
+        break;
+      } catch (err) {
+        if (local.length > 1) {
+          local.pop(); // Remove oldest stored local photo to fit quota
+        } else {
+          console.warn('LocalStorage quota exceeded for photo:', err);
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to save photo to localStorage:', e);
+  }
+}
+
+export function removeLocalPhoto(photoId) {
+  try {
+    const local = getLocalPhotos();
+    const filtered = local.filter(p => String(p.id) !== String(photoId));
+    localStorage.setItem('gallery_local_photos', JSON.stringify(filtered));
+  } catch (e) {}
+}
+
+/**
+ * Fetch photos from data/photos.json and merge with local browser photos
  */
 export async function loadPhotos() {
   try {
-    const response = await fetch('data/photos.json?t=' + Date.now());
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const data = await response.json();
-    state.allPhotos = Array.isArray(data) ? data : [];
+    let serverPhotos = [];
+    try {
+      const response = await fetch('data/photos.json?t=' + Date.now());
+      if (response.ok) {
+        const data = await response.json();
+        serverPhotos = Array.isArray(data) ? data : [];
+      }
+    } catch (fetchErr) {
+      console.warn('Direct fetch from data/photos.json was bypassed or failed:', fetchErr);
+    }
+
+    // Merge with any locally added photos saved in localStorage
+    const localPhotos = getLocalPhotos();
+    const existingIds = new Set(serverPhotos.map(p => String(p.id)));
+    const uniqueLocal = localPhotos.filter(p => !existingIds.has(String(p.id)));
+
+    state.allPhotos = [...uniqueLocal, ...serverPhotos];
     renderCategories();
     applyFilters();
     window.dispatchEvent(new CustomEvent('photosloaded'));
@@ -1842,10 +1899,23 @@ function initTheme() {
 }
 
 /**
- * Toast Notification Utility
+ * Toast Notification Utility (Supports top-layer dialogs)
  */
 export function showToast(message, type = 'success') {
-  const container = document.getElementById('toast-container');
+  let container = document.getElementById('toast-container');
+  
+  // If a dialog is open (in the browser's top layer), attach toast inside the dialog so it is visible
+  const openDialog = document.querySelector('dialog[open]');
+  if (openDialog) {
+    let dialogToastContainer = openDialog.querySelector('.dialog-toast-container');
+    if (!dialogToastContainer) {
+      dialogToastContainer = document.createElement('div');
+      dialogToastContainer.className = 'toast-container dialog-toast-container';
+      openDialog.appendChild(dialogToastContainer);
+    }
+    container = dialogToastContainer;
+  }
+
   if (!container) return;
 
   const toast = document.createElement('div');

@@ -11,8 +11,11 @@ import {
   loadPhotos,
   closeLightbox,
   getGoogleSheetUrl,
-  updateLightboxView
-} from './gallery.js?v=20261022_powertools';
+  updateLightboxView,
+  saveLocalPhoto,
+  getLocalPhotos,
+  removeLocalPhoto
+} from './gallery.js?v=20261023_studio_fix';
 
 // ==========================================================
 // DOM ELEMENTS
@@ -23,11 +26,13 @@ const uploadDialog = document.getElementById('upload-dialog');
 const closeUploadBtn = document.getElementById('close-upload-btn');
 const cancelUploadBtn = document.getElementById('cancel-upload-btn');
 const closeLocalBtn = document.getElementById('close-local-btn');
+const uploadInlineFeedback = document.getElementById('upload-inline-feedback');
 
-// Tabs
+// Tabs & Target Modes
 const tabButtons = document.querySelectorAll('.tab-btn');
 const githubTabContent = document.getElementById('github-tab-content');
 const localTabContent = document.getElementById('local-tab-content');
+const saveLocalBtn = document.getElementById('save-local-btn');
 
 // Dropzone & File Input
 const dropzone = document.getElementById('dropzone');
@@ -64,11 +69,16 @@ const batchGlobalCamera = document.getElementById('batch-global-camera');
 const batchApplyGlobalBtn = document.getElementById('batch-apply-global-btn');
 const batchItemsList = document.getElementById('batch-items-list');
 
-// GitHub inputs
+// GitHub inputs & Drawer
+const toggleGhConfigBtn = document.getElementById('toggle-gh-config-btn');
+const ghConfigDrawer = document.getElementById('gh-config-drawer');
+const ghTargetRepoText = document.getElementById('gh-target-repo-text');
 const ghOwnerInput = document.getElementById('gh-owner');
 const ghRepoInput = document.getElementById('gh-repo');
 const ghBranchInput = document.getElementById('gh-branch');
 const ghTokenInput = document.getElementById('gh-token');
+const testGhTokenBtn = document.getElementById('test-gh-token-btn');
+const ghTokenTestResult = document.getElementById('gh-token-test-result');
 const ghSheetUrlInput = document.getElementById('google-sheet-url');
 const testSheetBtn = document.getElementById('test-sheet-btn');
 const sheetTestResult = document.getElementById('sheet-test-result');
@@ -147,21 +157,21 @@ let activePhotoBeingEdited = null; // Photo object currently being edited in edi
 function checkAdminAccess() {
   const urlParams = new URLSearchParams(window.location.search);
   const paramAdmin = urlParams.has('admin') && urlParams.get('admin') !== 'false' && urlParams.get('admin') !== 'logout';
-  const sessionAdmin = sessionStorage.getItem('gallery_admin_active') === '1';
+  const sessionAdmin = sessionStorage.getItem('gallery_admin_active') === '1' || sessionStorage.getItem('gallery_admin_active') === 'true' || localStorage.getItem('gallery_admin_active') === 'true';
 
   if (urlParams.get('admin') === 'logout') {
     sessionStorage.removeItem('gallery_admin_active');
+    localStorage.removeItem('gallery_admin_active');
   } else if (paramAdmin) {
-    sessionStorage.setItem('gallery_admin_active', '1');
+    sessionStorage.setItem('gallery_admin_active', 'true');
+    localStorage.setItem('gallery_admin_active', 'true');
   }
 
   const isAdmin = (paramAdmin || sessionAdmin) && urlParams.get('admin') !== 'logout';
 
-  // Clear any legacy persistent admin mode from localStorage
-  try {
-    localStorage.removeItem('gallery_admin_mode');
-    localStorage.removeItem('gallery_admin_disabled');
-  } catch {}
+  // Upload Photo is always available to the owner/user
+  if (openUploadBtn) openUploadBtn.hidden = false;
+  if (footerUploadBtn) footerUploadBtn.hidden = false;
 
   const lbDeleteBtn = document.getElementById('lb-delete-btn');
   const lbEditBtn = document.getElementById('lb-edit-btn');
@@ -169,8 +179,6 @@ function checkAdminAccess() {
   if (isAdmin) {
     document.documentElement.classList.add('admin-mode');
     document.body.classList.add('admin-mode');
-    if (openUploadBtn) openUploadBtn.hidden = false;
-    if (footerUploadBtn) footerUploadBtn.hidden = false;
     if (lbDeleteBtn) lbDeleteBtn.hidden = false;
     if (lbEditBtn) lbEditBtn.hidden = false;
 
@@ -184,13 +192,27 @@ function checkAdminAccess() {
   } else {
     document.documentElement.classList.remove('admin-mode');
     document.body.classList.remove('admin-mode');
-    if (openUploadBtn) openUploadBtn.hidden = true;
-    if (footerUploadBtn) footerUploadBtn.hidden = true;
     if (lbDeleteBtn) lbDeleteBtn.hidden = true;
     if (lbEditBtn) lbEditBtn.hidden = true;
   }
 
   return isAdmin;
+}
+
+/**
+ * Inline Feedback Banner utility for the Upload Modal
+ */
+function showInlineFeedback(msg, type = 'info') {
+  if (!uploadInlineFeedback) return;
+  if (!msg) {
+    uploadInlineFeedback.hidden = true;
+    uploadInlineFeedback.textContent = '';
+    uploadInlineFeedback.className = 'upload-inline-feedback';
+    return;
+  }
+  uploadInlineFeedback.hidden = false;
+  uploadInlineFeedback.className = `upload-inline-feedback ${type}`;
+  uploadInlineFeedback.textContent = msg;
 }
 
 /**
@@ -210,19 +232,226 @@ export function initUploader() {
  * Load saved GitHub configurations from localStorage
  */
 function loadSavedGithubSettings() {
-  if (ghOwnerInput) ghOwnerInput.value = localStorage.getItem('gh_gallery_owner') || 'uttam5711';
-  if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gh_gallery_repo') || 'Life-Through-My-Lens';
-  if (ghBranchInput) ghBranchInput.value = localStorage.getItem('gh_gallery_branch') || 'main';
-  if (ghTokenInput) ghTokenInput.value = localStorage.getItem('gh_gallery_token') || '';
+  const owner = localStorage.getItem('gh_gallery_owner') || 'uttam5711';
+  const repo = localStorage.getItem('gh_gallery_repo') || 'Life-Through-My-Lens';
+  const branch = localStorage.getItem('gh_gallery_branch') || 'main';
+  const token = localStorage.getItem('gh_gallery_token') || '';
+
+  if (ghOwnerInput) ghOwnerInput.value = owner;
+  if (ghRepoInput) ghRepoInput.value = repo;
+  if (ghBranchInput) ghBranchInput.value = branch;
+  if (ghTokenInput) ghTokenInput.value = token;
   if (ghSheetUrlInput) ghSheetUrlInput.value = localStorage.getItem('gh_gallery_sheet_url') || getGoogleSheetUrl();
+
+  if (ghTargetRepoText) {
+    ghTargetRepoText.textContent = `${owner}/${repo}`;
+  }
+
+  if (ghTokenTestResult && token) {
+    ghTokenTestResult.textContent = 'Token saved ✓';
+    ghTokenTestResult.style.color = '#10b981';
+  }
 }
 
 function saveGithubSettings() {
-  if (ghOwnerInput) localStorage.setItem('gh_gallery_owner', ghOwnerInput.value.trim());
-  if (ghRepoInput) localStorage.setItem('gh_gallery_repo', ghRepoInput.value.trim());
-  if (ghBranchInput) localStorage.setItem('gh_gallery_branch', ghBranchInput.value.trim() || 'main');
-  if (ghTokenInput) localStorage.setItem('gh_gallery_token', ghTokenInput.value.trim());
-  if (ghSheetUrlInput) localStorage.setItem('gh_gallery_sheet_url', ghSheetUrlInput.value.trim());
+  const owner = ghOwnerInput ? ghOwnerInput.value.trim() : 'uttam5711';
+  const repo = ghRepoInput ? ghRepoInput.value.trim() : 'Life-Through-My-Lens';
+  const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
+  const token = ghTokenInput ? ghTokenInput.value.trim() : '';
+  const sheetUrl = ghSheetUrlInput ? ghSheetUrlInput.value.trim() : '';
+
+  localStorage.setItem('gh_gallery_owner', owner);
+  localStorage.setItem('gh_gallery_repo', repo);
+  localStorage.setItem('gh_gallery_branch', branch);
+  localStorage.setItem('gh_gallery_token', token);
+  localStorage.setItem('gh_gallery_sheet_url', sheetUrl);
+
+  if (ghTargetRepoText) {
+    ghTargetRepoText.textContent = `${owner}/${repo}`;
+  }
+}
+
+/**
+ * Robust UTF-8 to Base64 and Base64 to UTF-8 using TextEncoder / TextDecoder
+ * Eliminates URIError / malformed URI issues with multi-byte unicode (emojis, Gujarati, Hindi, etc.)
+ */
+function utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    bin += String.fromCharCode(bytes[i]);
+  }
+  return btoa(bin);
+}
+
+function base64ToUtf8(b64) {
+  const clean = b64.replace(/\s/g, '');
+  const bin = atob(clean);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    bytes[i] = bin.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Strip accidental 'Bearer ', 'token ', or quotes from GitHub PAT input
+ */
+function getSanitizedToken(raw) {
+  const val = (raw !== undefined ? raw : (ghTokenInput ? ghTokenInput.value : '')).trim();
+  return val.replace(/^(Bearer|token)\s+/i, '').replace(/^["']|["']$/g, '').trim();
+}
+
+/**
+ * Generate standard GitHub Authorization header value
+ */
+function getAuthHeader(token) {
+  const clean = getSanitizedToken(token);
+  return `Bearer ${clean}`;
+}
+
+/**
+ * Test GitHub Personal Access Token and repository write permissions
+ */
+async function testGithubConnection() {
+  saveGithubSettings();
+  const owner = (ghOwnerInput ? ghOwnerInput.value.trim() : '') || 'uttam5711';
+  const repo = (ghRepoInput ? ghRepoInput.value.trim() : '') || 'Life-Through-My-Lens';
+  const token = getSanitizedToken();
+
+  if (!token) {
+    if (ghTokenTestResult) {
+      ghTokenTestResult.textContent = '❌ Please enter a GitHub token first';
+      ghTokenTestResult.style.color = '#ef4444';
+    }
+    showInlineFeedback('Please enter your GitHub Personal Access Token in the settings below to test the connection.', 'error');
+    if (ghConfigDrawer) ghConfigDrawer.hidden = false;
+    if (ghTokenInput) ghTokenInput.focus();
+    return;
+  }
+
+  if (testGhTokenBtn) {
+    testGhTokenBtn.disabled = true;
+    testGhTokenBtn.textContent = 'Testing...';
+  }
+  if (ghTokenTestResult) {
+    ghTokenTestResult.textContent = 'Verifying token & repo access...';
+    ghTokenTestResult.style.color = 'var(--text-muted)';
+  }
+
+  try {
+    // 1. Verify token user
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': getAuthHeader(token),
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!userRes.ok) {
+      const err = await userRes.json().catch(() => ({}));
+      if (userRes.status === 401) {
+        throw new Error('401 Unauthorized: Invalid or expired GitHub Personal Access Token.');
+      }
+      throw new Error(`GitHub auth failed (${userRes.status}): ${err.message || userRes.statusText}`);
+    }
+    const userData = await userRes.json();
+    const username = userData.login;
+
+    // 2. Verify repo access & permissions
+    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: {
+        'Authorization': getAuthHeader(token),
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!repoRes.ok) {
+      const err = await repoRes.json().catch(() => ({}));
+      if (repoRes.status === 404) {
+        throw new Error(`Repository "${owner}/${repo}" not found or token lacks 'repo' scope.`);
+      }
+      throw new Error(`Repository error (${repoRes.status}): ${err.message || repoRes.statusText}`);
+    }
+
+    const repoData = await repoRes.json();
+    const canPush = repoData.permissions ? repoData.permissions.push : true;
+
+    if (canPush) {
+      if (ghTokenTestResult) {
+        ghTokenTestResult.textContent = `✓ Connected as @${username} (write access verified)`;
+        ghTokenTestResult.style.color = '#10b981';
+      }
+      showInlineFeedback(`✓ Connected as @${username}! Push permissions confirmed on ${owner}/${repo}.`, 'success');
+      showToast(`Connected to GitHub as @${username}!`, 'success');
+    } else {
+      if (ghTokenTestResult) {
+        ghTokenTestResult.textContent = `⚠️ Connected as @${username}, but lacks push/write permissions.`;
+        ghTokenTestResult.style.color = '#f59e0b';
+      }
+      showInlineFeedback(`⚠️ Connected as @${username}, but you do not have write access to ${owner}/${repo}. Check your token permissions.`, 'warning');
+    }
+  } catch (err) {
+    console.error('GitHub connection test failed:', err);
+    if (ghTokenTestResult) {
+      ghTokenTestResult.textContent = `❌ ${err.message}`;
+      ghTokenTestResult.style.color = '#ef4444';
+    }
+    showInlineFeedback(err.message, 'error');
+    showToast(err.message, 'error');
+  } finally {
+    if (testGhTokenBtn) {
+      testGhTokenBtn.disabled = false;
+      testGhTokenBtn.textContent = '✓ Test GitHub Token';
+    }
+  }
+}
+
+/**
+ * Save photos to browser local storage so they appear immediately in the gallery
+ * and persist across page refreshes without needing a GitHub PAT.
+ */
+function performLocalSave() {
+  if (batchQueue.length === 0 && !currentProcessedImage) {
+    showInlineFeedback('Please select or drop at least one photo first!', 'error');
+    showToast('Please select or drop a photo first!', 'error');
+    return;
+  }
+
+  if (batchQueue.length > 0) {
+    const missingTitle = batchQueue.some(item => !item.title.trim());
+    if (missingTitle) {
+      showInlineFeedback('Please provide a title for all photos in the batch.', 'error');
+      showToast('Please provide a title for all photos in the batch', 'error');
+      return;
+    }
+
+    const savedPhotos = batchQueue.map(item => {
+      const photoObj = buildPhotoObjectFromBatchItem(item);
+      photoObj.url = item.previewUrl;
+      photoObj.thumbnail = item.previewUrl;
+      saveLocalPhoto(photoObj);
+      return photoObj;
+    });
+
+    state.allPhotos.unshift(...savedPhotos);
+    applyFilters();
+    closeModal(uploadDialog);
+    resetDropzone();
+    showToast(`🎉 Saved ${savedPhotos.length} photos to your gallery!`, 'success');
+  } else {
+    const newPhoto = buildPhotoObject();
+    newPhoto.url = currentProcessedImage.previewUrl;
+    newPhoto.thumbnail = currentProcessedImage.previewUrl;
+
+    saveLocalPhoto(newPhoto);
+    state.allPhotos.unshift(newPhoto);
+    applyFilters();
+    closeModal(uploadDialog);
+    resetDropzone();
+    showToast(`🎉 "${newPhoto.title}" saved to your gallery!`, 'success');
+  }
 }
 
 function setDefaultDate() {
@@ -256,15 +485,31 @@ function setupUploaderEvents() {
   if (cancelUploadBtn) cancelUploadBtn.addEventListener('click', () => closeModal(uploadDialog));
   if (closeLocalBtn) closeLocalBtn.addEventListener('click', () => closeModal(uploadDialog));
 
-  // Backdrop click to close modals
-  if (uploadDialog) {
+  // Backdrop click to close modals with modern guidance bounding rect fallback
+  if (uploadDialog && !('closedBy' in HTMLDialogElement.prototype)) {
     uploadDialog.addEventListener('click', (e) => {
-      if (e.target === uploadDialog) closeModal(uploadDialog);
+      if (e.target !== uploadDialog) return;
+      const rect = uploadDialog.getBoundingClientRect();
+      const isInside = (
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width
+      );
+      if (!isInside) closeModal(uploadDialog);
     });
   }
-  if (tokenGuideDialog) {
+  if (tokenGuideDialog && !('closedBy' in HTMLDialogElement.prototype)) {
     tokenGuideDialog.addEventListener('click', (e) => {
-      if (e.target === tokenGuideDialog) closeModal(tokenGuideDialog);
+      if (e.target !== tokenGuideDialog) return;
+      const rect = tokenGuideDialog.getBoundingClientRect();
+      const isInside = (
+        rect.top <= e.clientY &&
+        e.clientY <= rect.top + rect.height &&
+        rect.left <= e.clientX &&
+        e.clientX <= rect.left + rect.width
+      );
+      if (!isInside) closeModal(tokenGuideDialog);
     });
   }
 
@@ -276,23 +521,48 @@ function setupUploaderEvents() {
   if (closeTokenGuideBtn) closeTokenGuideBtn.addEventListener('click', () => closeModal(tokenGuideDialog));
   if (guideUnderstoodBtn) guideUnderstoodBtn.addEventListener('click', () => closeModal(tokenGuideDialog));
 
-  // Tab switching
+  // Tab switching (GitHub vs Local Gallery)
   tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       tabButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
       const target = btn.dataset.tab;
+      showInlineFeedback(''); // Clear any stale message
       if (target === 'github-tab') {
-        githubTabContent.hidden = false;
-        localTabContent.hidden = true;
+        if (githubTabContent) githubTabContent.hidden = false;
+        if (localTabContent) localTabContent.hidden = true;
+        if (githubSubmitBtn) githubSubmitBtn.hidden = false;
+        if (saveLocalBtn) saveLocalBtn.hidden = false;
+        if (closeLocalBtn) closeLocalBtn.hidden = true;
       } else {
-        githubTabContent.hidden = true;
-        localTabContent.hidden = false;
+        if (githubTabContent) githubTabContent.hidden = true;
+        if (localTabContent) localTabContent.hidden = false;
+        if (githubSubmitBtn) githubSubmitBtn.hidden = true;
+        if (saveLocalBtn) saveLocalBtn.hidden = false;
+        if (closeLocalBtn) closeLocalBtn.hidden = false;
         updateJsonSnippetPreview();
       }
     });
   });
+
+  // Toggle GitHub Settings Drawer
+  if (toggleGhConfigBtn && ghConfigDrawer) {
+    toggleGhConfigBtn.addEventListener('click', () => {
+      ghConfigDrawer.hidden = !ghConfigDrawer.hidden;
+      toggleGhConfigBtn.textContent = ghConfigDrawer.hidden ? '⚙️ Settings & Token' : '▲ Close Settings';
+    });
+  }
+
+  // Test GitHub Connection Button
+  if (testGhTokenBtn) {
+    testGhTokenBtn.addEventListener('click', testGithubConnection);
+  }
+
+  // Save to Local Gallery Button
+  if (saveLocalBtn) {
+    saveLocalBtn.addEventListener('click', performLocalSave);
+  }
 
   // Custom Category Toggle
   if (photoCategorySelect) {
@@ -309,6 +579,21 @@ function setupUploaderEvents() {
 
   // File Drop & Select (Supports 1 to 10 files)
   if (dropzone) {
+    // Explicit click on dropzone triggers system file dialog
+    dropzone.addEventListener('click', (e) => {
+      if (e.target.closest('#demo-batch-btn, #single-crop-btn, #remove-file-btn, button, a')) {
+        return;
+      }
+      if (fileInput) fileInput.click();
+    });
+
+    dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (fileInput) fileInput.click();
+      }
+    });
+
     dropzone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropzone.classList.add('dragover');
@@ -402,7 +687,6 @@ function setupUploaderEvents() {
   if (downloadPhotoFileBtn) {
     downloadPhotoFileBtn.addEventListener('click', () => {
       if (batchQueue.length > 0) {
-        // Download all files in batch
         batchQueue.forEach((item, i) => {
           setTimeout(() => {
             const a = document.createElement('a');
@@ -457,26 +741,30 @@ function setupUploaderEvents() {
       e.preventDefault();
 
       if (batchQueue.length === 0 && !currentProcessedImage) {
+        showInlineFeedback('Please select or drop at least one photo first!', 'error');
         showToast('Please select or drop a photo first!', 'error');
         return;
       }
 
       saveGithubSettings();
 
-      const owner = ghOwnerInput.value.trim();
-      const repo = ghRepoInput.value.trim();
-      const branch = ghBranchInput.value.trim() || 'main';
-      const token = ghTokenInput.value.trim();
+      const owner = ghOwnerInput ? ghOwnerInput.value.trim() : '';
+      const repo = ghRepoInput ? ghRepoInput.value.trim() : '';
+      const branch = (ghBranchInput ? ghBranchInput.value.trim() : '') || 'main';
+      const token = getSanitizedToken();
 
       if (!owner || !repo || !token) {
-        showToast('Please enter your GitHub Username, Repo, and Token', 'error');
+        showInlineFeedback('Please enter your GitHub Username, Repository, and Token to commit to GitHub. Or click the "Local Gallery" tab to save locally without a token!', 'error');
+        showToast('GitHub token required for cloud sync', 'error');
+        if (ghConfigDrawer) ghConfigDrawer.hidden = false;
+        if (ghTokenInput && !token) ghTokenInput.focus();
         return;
       }
 
       if (batchQueue.length > 0) {
-        // Validate that all batch items have titles
         const missingTitle = batchQueue.some(item => !item.title.trim());
         if (missingTitle) {
+          showInlineFeedback('Please provide a title for all photos in the batch queue.', 'error');
           showToast('Please provide a title for all photos in the batch', 'error');
           return;
         }
@@ -947,8 +1235,9 @@ function resetDropzone() {
 
 /**
  * Compress an image file using an HTML5 Canvas and retain rawImage
+ * Default max dimension 1600 and quality 0.82 ensures photos stay well below GitHub's 1MB API limit
  */
-function compressImage(file, maxDimension = 1920, quality = 0.85) {
+function compressImage(file, maxDimension = 1600, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -1260,8 +1549,8 @@ function applyEditorChanges() {
   const img = editorState.originalImg;
   const { sx, sy, sw, sh } = getCropRect(img.naturalWidth || img.width, img.naturalHeight || img.height, editorState.cropAspect);
 
-  // Full-resolution export canvas (capped at 1920 max dimension)
-  const maxDim = 1920;
+  // Full-resolution export canvas (capped at 1600 max dimension for optimal performance & GitHub size limit)
+  const maxDim = 1600;
   let outW = sw;
   let outH = sh;
   if (outW > maxDim || outH > maxDim) {
@@ -1289,7 +1578,7 @@ function applyEditorChanges() {
     applyGrainOverlay(exportCtx, outW, outH, editorState.grain);
   }
 
-  const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.88);
+  const dataUrl = exportCanvas.toDataURL('image/jpeg', 0.82);
   const base64 = dataUrl.split(',')[1];
 
   exportCanvas.toBlob((blob) => {
@@ -1511,7 +1800,7 @@ async function saveMetadataToGitHub() {
 
     const getResult = await jsonGetRes.json();
     const fileSha = getResult.sha;
-    const decoded = decodeURIComponent(escape(atob(getResult.content.replace(/\s/g, ''))));
+    const decoded = base64ToUtf8(getResult.content);
     const remoteCatalog = JSON.parse(decoded);
 
     // 2. Find and update the photo object in the catalog
@@ -1534,7 +1823,7 @@ async function saveMetadataToGitHub() {
 
     // 3. Commit updated photos.json to GitHub
     const updatedJsonString = JSON.stringify(remoteCatalog, null, 2);
-    const updatedBase64 = btoa(unescape(encodeURIComponent(updatedJsonString)));
+    const updatedBase64 = utf8ToBase64(updatedJsonString);
 
     const updatePayload = {
       message: `Update photo details: "${updated.title}"`,
@@ -1546,7 +1835,7 @@ async function saveMetadataToGitHub() {
     const jsonPutRes = await fetch(jsonApiUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': getAuthHeader(token),
         'Content-Type': 'application/json',
         'Accept': 'application/vnd.github.v3+json'
       },
@@ -1600,7 +1889,7 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
     const imageRes = await fetch(imageApiUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': getAuthHeader(token),
         'Content-Type': 'application/json',
         'Accept': 'application/vnd.github.v3+json'
       },
@@ -1612,8 +1901,16 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
     });
 
     if (!imageRes.ok) {
-      const errData = await imageRes.json();
-      throw new Error(`Image upload failed (${imageRes.status}): ${errData.message || 'Check your token and repo name'}`);
+      const errData = await imageRes.json().catch(() => ({}));
+      let msg = errData.message || imageRes.statusText;
+      if (imageRes.status === 401) {
+        msg = 'Invalid GitHub Token (401 Unauthorized). Please check your token in Settings.';
+      } else if (imageRes.status === 404) {
+        msg = `Repository "${owner}/${repo}" or branch "${branch}" not found (404).`;
+      } else if (imageRes.status === 422) {
+        msg = `Upload rejected (422): ${errData.message || 'File payload too large or conflict'}`;
+      }
+      throw new Error(`Image upload failed: ${msg}`);
     }
 
     setUploadLoading(true, '2/2 Updating data/photos.json on GitHub...');
@@ -1622,7 +1919,7 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
     const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
     const jsonGetRes = await fetch(jsonApiUrl, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': getAuthHeader(token),
         'Accept': 'application/vnd.github.v3+json'
       }
     });
@@ -1634,7 +1931,7 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
       const getResult = await jsonGetRes.json();
       fileSha = getResult.sha;
       try {
-        const decoded = decodeURIComponent(escape(atob(getResult.content.replace(/\s/g, ''))));
+        const decoded = base64ToUtf8(getResult.content);
         currentJsonData = JSON.parse(decoded);
       } catch (e) {
         currentJsonData = [...state.allPhotos];
@@ -1648,7 +1945,7 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
     const updatedList = [newPhoto, ...currentJsonData];
 
     const updatedJsonString = JSON.stringify(updatedList, null, 2);
-    const updatedBase64 = btoa(unescape(encodeURIComponent(updatedJsonString)));
+    const updatedBase64 = utf8ToBase64(updatedJsonString);
 
     const updateJsonPayload = {
       message: `Update photos.json: Added "${newPhoto.title}"`,
@@ -1662,7 +1959,7 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
     const jsonPutRes = await fetch(jsonApiUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': getAuthHeader(token),
         'Content-Type': 'application/json',
         'Accept': 'application/vnd.github.v3+json'
       },
@@ -1670,12 +1967,17 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
     });
 
     if (!jsonPutRes.ok) {
-      const err = await jsonPutRes.json();
-      throw new Error(`Failed to update photos.json (${jsonPutRes.status}): ${err.message}`);
+      const err = await jsonPutRes.json().catch(() => ({}));
+      let msg = err.message || jsonPutRes.statusText;
+      if (jsonPutRes.status === 409) {
+        msg = 'Conflict updating photos.json (409). Please try again.';
+      }
+      throw new Error(`Failed to update photos.json: ${msg}`);
     }
 
-    // 4. Update in-memory local gallery immediately
+    // 4. Update in-memory local gallery immediately and save local backup
     const livePhoto = { ...newPhoto, url: currentProcessedImage.previewUrl, thumbnail: currentProcessedImage.previewUrl };
+    saveLocalPhoto(livePhoto);
     state.allPhotos.unshift(livePhoto);
     applyFilters();
 
@@ -1687,6 +1989,7 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
   } catch (error) {
     console.error('GitHub direct upload failed:', error);
     setUploadLoading(false);
+    showInlineFeedback(error.message, 'error');
     showToast(error.message, 'error');
   }
 }
@@ -1710,7 +2013,7 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
       const imageRes = await fetch(imageApiUrl, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': getAuthHeader(token),
           'Content-Type': 'application/json',
           'Accept': 'application/vnd.github.v3+json'
         },
@@ -1723,7 +2026,13 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
 
       if (!imageRes.ok) {
         const errData = await imageRes.json().catch(() => ({}));
-        throw new Error(`Failed uploading "${item.title}": ${errData.message || imageRes.statusText}`);
+        let msg = errData.message || imageRes.statusText;
+        if (imageRes.status === 401) {
+          msg = 'Invalid GitHub Token (401 Unauthorized). Check your token in Settings.';
+        } else if (imageRes.status === 404) {
+          msg = `Repository "${owner}/${repo}" not found.`;
+        }
+        throw new Error(`Failed uploading "${item.title}": ${msg}`);
       }
     }
 
@@ -1733,7 +2042,7 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
     const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
     const jsonGetRes = await fetch(jsonApiUrl, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': getAuthHeader(token),
         'Accept': 'application/vnd.github.v3+json'
       }
     });
@@ -1745,7 +2054,7 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
       const getResult = await jsonGetRes.json();
       fileSha = getResult.sha;
       try {
-        const decoded = decodeURIComponent(escape(atob(getResult.content.replace(/\s/g, ''))));
+        const decoded = base64ToUtf8(getResult.content);
         currentJsonData = JSON.parse(decoded);
       } catch (e) {
         currentJsonData = [...state.allPhotos];
@@ -1759,7 +2068,7 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
     const updatedList = [...newPhotos, ...currentJsonData];
 
     const updatedJsonString = JSON.stringify(updatedList, null, 2);
-    const updatedBase64 = btoa(unescape(encodeURIComponent(updatedJsonString)));
+    const updatedBase64 = utf8ToBase64(updatedJsonString);
 
     const updateJsonPayload = {
       message: `Batch upload: Added ${total} photos (${new Date().toLocaleDateString()})`,
@@ -1773,7 +2082,7 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
     const jsonPutRes = await fetch(jsonApiUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': getAuthHeader(token),
         'Content-Type': 'application/json',
         'Accept': 'application/vnd.github.v3+json'
       },
@@ -1785,12 +2094,16 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
       throw new Error(`Failed to update photos.json: ${err.message || jsonPutRes.statusText}`);
     }
 
-    // 4. Update in-memory local gallery with live preview URLs for instant view
-    const liveBatchPhotos = batchQueue.map((item, idx) => ({
-      ...newPhotos[idx],
-      url: item.previewUrl,
-      thumbnail: item.previewUrl
-    }));
+    // 4. Update in-memory local gallery with live preview URLs for instant view & local persistence
+    const liveBatchPhotos = batchQueue.map((item, idx) => {
+      const p = {
+        ...newPhotos[idx],
+        url: item.previewUrl,
+        thumbnail: item.previewUrl
+      };
+      saveLocalPhoto(p);
+      return p;
+    });
     state.allPhotos.unshift(...liveBatchPhotos);
     applyFilters();
 
@@ -1802,6 +2115,7 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
   } catch (error) {
     console.error('Batch upload error:', error);
     setUploadLoading(false);
+    showInlineFeedback(error.message, 'error');
     showToast(error.message, 'error');
   }
 }
@@ -1873,9 +2187,12 @@ function setUploadLoading(isLoading, message = '') {
     if (uploadStatus) uploadStatus.hidden = false;
     if (uploadStatusMsg) uploadStatusMsg.textContent = message;
     if (githubSubmitBtn) githubSubmitBtn.disabled = true;
+    if (saveLocalBtn) saveLocalBtn.disabled = true;
+    showInlineFeedback(message, 'info');
   } else {
     if (uploadStatus) uploadStatus.hidden = true;
     if (githubSubmitBtn) githubSubmitBtn.disabled = false;
+    if (saveLocalBtn) saveLocalBtn.disabled = false;
   }
 }
 
@@ -2287,13 +2604,13 @@ function setupDeletePhotoFlow() {
 
         const getResult = await jsonGetRes.json();
         const fileSha = getResult.sha;
-        const decoded = decodeURIComponent(escape(atob(getResult.content.replace(/\s/g, ''))));
+        const decoded = base64ToUtf8(getResult.content);
         const currentList = JSON.parse(decoded);
 
         const updatedList = currentList.filter(p => p.id !== photo.id && p.url !== photo.url);
 
         const updatedJsonString = JSON.stringify(updatedList, null, 2);
-        const updatedBase64 = btoa(unescape(encodeURIComponent(updatedJsonString)));
+        const updatedBase64 = utf8ToBase64(updatedJsonString);
 
         const updateJsonPayload = {
           message: `Delete photo: "${photo.title || photo.id}"`,
@@ -2305,7 +2622,7 @@ function setupDeletePhotoFlow() {
         const jsonPutRes = await fetch(jsonApiUrl, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': getAuthHeader(token),
             'Content-Type': 'application/json',
             'Accept': 'application/vnd.github.v3+json'
           },
@@ -2322,7 +2639,7 @@ function setupDeletePhotoFlow() {
             const imageApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${photo.url}?ref=${branch}`;
             const imgGetRes = await fetch(imageApiUrl, {
               headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': getAuthHeader(token),
                 'Accept': 'application/vnd.github.v3+json'
               }
             });
@@ -2331,7 +2648,7 @@ function setupDeletePhotoFlow() {
               await fetch(imageApiUrl, {
                 method: 'DELETE',
                 headers: {
-                  'Authorization': `Bearer ${token}`,
+                  'Authorization': getAuthHeader(token),
                   'Content-Type': 'application/json',
                   'Accept': 'application/vnd.github.v3+json'
                 },
@@ -2346,6 +2663,11 @@ function setupDeletePhotoFlow() {
             console.warn('Asset deletion error on GitHub:', assetErr);
           }
         }
+      }
+
+      // Remove from browser local storage if present
+      if (photo.id) {
+        removeLocalPhoto(photo.id);
       }
 
       const targetIndex = state.allPhotos.findIndex(p => p.id === photo.id || p.url === photo.url);
