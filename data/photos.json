@@ -1,5 +1,19 @@
 [
   {
+    "id": "photo-1792733673420",
+    "title": "Bonzai Cafe",
+    "category": "Street & City",
+    "url": "images/photo-0aaffbc0-eac1-4bf9-b17b-9b0057-1792733636527.jpg",
+    "thumbnail": "images/photo-0aaffbc0-eac1-4bf9-b17b-9b0057-1792733636527.jpg",
+    "date": "2026-06-09",
+    "description": "",
+    "location": "Surat",
+    "camera": "IPhone 17 Pro Max",
+    "tags": [
+      "photo"
+    ]
+  },
+  {
     "id": "photo-1792642770709",
     "title": "Output Image",
     "category": "Random Clicks",
