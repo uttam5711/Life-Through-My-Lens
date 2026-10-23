@@ -119,6 +119,7 @@ const editMetadataForm = document.getElementById('edit-metadata-form');
 const editPhotoId = document.getElementById('edit-photo-id');
 const editPhotoUrl = document.getElementById('edit-photo-url');
 const editPreviewThumb = document.getElementById('edit-preview-thumb');
+const editOpenStudioBtn = document.getElementById('edit-open-studio-btn');
 const editPhotoIdDisplay = document.getElementById('edit-photo-id-display');
 const editPhotoTitle = document.getElementById('edit-photo-title');
 const editPhotoCategory = document.getElementById('edit-photo-category');
@@ -1312,8 +1313,22 @@ function compressImage(file, maxDimension = 1600, quality = 0.82) {
 function setupPhotoEditor() {
   if (!photoEditorDialog) return;
 
-  if (closeEditorBtn) closeEditorBtn.addEventListener('click', () => closeModal(photoEditorDialog));
-  if (editorCancelBtn) editorCancelBtn.addEventListener('click', () => closeModal(photoEditorDialog));
+  const handleEditorClose = () => {
+    closeModal(photoEditorDialog);
+    if (editorTarget && editorTarget.type === 'metadata' && editMetadataDialog) {
+      openModal(editMetadataDialog);
+    }
+  };
+
+  if (closeEditorBtn) closeEditorBtn.addEventListener('click', handleEditorClose);
+  if (editorCancelBtn) editorCancelBtn.addEventListener('click', handleEditorClose);
+
+  // Backdrop click for Photo Studio
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    photoEditorDialog.addEventListener('click', (e) => {
+      if (e.target === photoEditorDialog) handleEditorClose();
+    });
+  }
 
   // Reset button
   if (editorResetBtn) {
@@ -1614,6 +1629,10 @@ function applyEditorChanges() {
         if (badge) badge.textContent = `${outW}×${outH} • ${sizeKb}KB`;
       }
       updateJsonSnippetPreview();
+    } else if (editorTarget.type === 'metadata') {
+      if (typeof editorTarget.onApply === 'function') {
+        editorTarget.onApply(dataUrl, blob, base64, outW, outH, sizeKb, editorState.cropAspect, editorState.preset, editorState.grain);
+      }
     }
 
     closeModal(photoEditorDialog);
@@ -1630,6 +1649,44 @@ function setupMetadataEditor() {
 
   if (closeEditDialogBtn) closeEditDialogBtn.addEventListener('click', () => closeModal(editMetadataDialog));
   if (cancelEditDialogBtn) cancelEditDialogBtn.addEventListener('click', () => closeModal(editMetadataDialog));
+
+  // Backdrop click to close
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    editMetadataDialog.addEventListener('click', (e) => {
+      if (e.target === editMetadataDialog) closeModal(editMetadataDialog);
+    });
+  }
+
+  // Open Photo Studio (Crop & Vintage Presets) from Metadata Editor
+  if (editOpenStudioBtn) {
+    editOpenStudioBtn.addEventListener('click', () => {
+      if (!activePhotoBeingEdited) return;
+      const currentPhoto = activePhotoBeingEdited;
+      const photoSrc = (editPreviewThumb && editPreviewThumb.src) || currentPhoto.url || currentPhoto.thumbnail;
+
+      closeModal(editMetadataDialog);
+
+      openPhotoEditor({
+        type: 'metadata',
+        item: {
+          previewUrl: photoSrc,
+          cropAspect: currentPhoto.cropAspect || 'original',
+          preset: currentPhoto.preset || 'none',
+          grain: currentPhoto.grain || 'none'
+        },
+        onApply: (dataUrl, blob, base64, outW, outH, sizeKb, cropAspect, preset, grain) => {
+          if (editPreviewThumb) editPreviewThumb.src = dataUrl;
+          currentPhoto.thumbnail = dataUrl;
+          currentPhoto.editedBlob = blob;
+          currentPhoto.editedBase64 = base64;
+          currentPhoto.cropAspect = cropAspect;
+          currentPhoto.preset = preset;
+          currentPhoto.grain = grain;
+          openModal(editMetadataDialog);
+        }
+      });
+    });
+  }
 
   // Custom Category Toggle
   if (editPhotoCategory) {
@@ -1737,6 +1794,10 @@ function saveMetadataLocally() {
   if (!activePhotoBeingEdited) return;
   const updated = getUpdatedMetadataFromForm();
 
+  if (activePhotoBeingEdited.thumbnail && activePhotoBeingEdited.thumbnail.startsWith('data:image/')) {
+    updated.thumbnail = activePhotoBeingEdited.thumbnail;
+  }
+
   // Update in-memory state
   const target = state.allPhotos.find(p => p.id === activePhotoBeingEdited.id || p.url === activePhotoBeingEdited.url);
   if (target) {
@@ -1800,6 +1861,42 @@ async function saveMetadataToGitHub() {
     const remoteCatalog = JSON.parse(decoded);
 
     // 2. Find and update the photo object in the catalog
+    if (activePhotoBeingEdited.thumbnail && activePhotoBeingEdited.thumbnail.startsWith('data:image/')) {
+      updated.thumbnail = activePhotoBeingEdited.thumbnail;
+    }
+
+    // If photo was re-cropped or film filtered in studio, commit updated image file
+    if (activePhotoBeingEdited.editedBase64 && activePhotoBeingEdited.url && activePhotoBeingEdited.url.startsWith('images/')) {
+      if (editMetaStatusMsg) editMetaStatusMsg.textContent = 'Uploading cropped & filtered photo to GitHub...';
+      try {
+        const imgApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${activePhotoBeingEdited.url}?ref=${branch}`;
+        const imgGetRes = await fetch(imgApiUrl, {
+          headers: { 'Authorization': getAuthHeader(token), 'Accept': 'application/vnd.github.v3+json' }
+        });
+        let imgSha = undefined;
+        if (imgGetRes.ok) {
+          const imgData = await imgGetRes.json();
+          imgSha = imgData.sha;
+        }
+        await fetch(imgApiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': getAuthHeader(token),
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify({
+            message: `Update photo file: ${activePhotoBeingEdited.url}`,
+            content: activePhotoBeingEdited.editedBase64,
+            sha: imgSha,
+            branch: branch
+          })
+        });
+      } catch (imgErr) {
+        console.warn('Could not update image file in GitHub, saving metadata entry:', imgErr);
+      }
+    }
+
     let matched = false;
     for (let i = 0; i < remoteCatalog.length; i++) {
       if (remoteCatalog[i].id === activePhotoBeingEdited.id || remoteCatalog[i].url === activePhotoBeingEdited.url) {

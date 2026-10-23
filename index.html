@@ -1210,12 +1210,21 @@
         <input type="hidden" id="edit-photo-url">
 
         <div class="edit-meta-grid">
-          <!-- Left: Thumbnail preview -->
+          <!-- Left: Thumbnail preview & Quick Actions -->
           <div class="edit-meta-thumb-col">
             <div class="edit-meta-thumb-wrap">
               <img id="edit-preview-thumb" src="" alt="Photo thumbnail">
             </div>
-            <p class="edit-meta-id-text" id="edit-photo-id-display">photo-id</p>
+
+            <button type="button" id="edit-open-studio-btn" class="secondary-btn edit-studio-btn" title="Open Crop & Vintage Film Presets Studio">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
+              <span>Crop &amp; Filters 🎨</span>
+            </button>
+
+            <div class="edit-id-badge" title="Photo ID">
+              <span class="edit-id-label">ID</span>
+              <span class="edit-id-text" id="edit-photo-id-display">photo-id</span>
+            </div>
           </div>
 
           <!-- Right: Inputs -->
@@ -1223,7 +1232,7 @@
             <div class="form-row">
               <div class="form-group flex-2">
                 <label for="edit-photo-title">Title <span class="required">*</span></label>
-                <input type="text" id="edit-photo-title" class="form-input" required>
+                <input type="text" id="edit-photo-title" class="form-input" required placeholder="Photo title">
               </div>
               <div class="form-group flex-1">
                 <label for="edit-photo-category">Category <span class="required">*</span></label>
@@ -1249,24 +1258,30 @@
                 <input type="date" id="edit-photo-date" class="form-input">
               </div>
               <div class="form-group flex-1">
-                <label for="edit-photo-location">Location / Place</label>
-                <input type="text" id="edit-photo-location" class="form-input" placeholder="e.g. Ahmedabad or 23.0439, 72.5168">
-                <span class="settings-hint">City name or GPS coordinates (opens Google Maps)</span>
-              </div>
-              <div class="form-group flex-1">
                 <label for="edit-photo-camera">Camera / Device</label>
-                <input type="text" id="edit-photo-camera" class="form-input" placeholder="e.g. iPhone 16 Pro">
+                <input type="text" id="edit-photo-camera" class="form-input" placeholder="e.g. iPhone 16 Pro, Sony A7 IV">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="form-label-row">
+                <label for="edit-photo-location">Location / Place</label>
+                <span class="field-hint-inline">City name or GPS coords (opens Google Maps)</span>
+              </div>
+              <div class="input-with-icon">
+                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <input type="text" id="edit-photo-location" class="form-input input-has-icon" placeholder="e.g. Ahmedabad, Gujarat or 23.0439, 72.5168">
               </div>
             </div>
 
             <div class="form-group">
               <label for="edit-photo-desc">Caption / Story</label>
-              <textarea id="edit-photo-desc" class="form-input" rows="2" placeholder="Write a short description or memory..."></textarea>
+              <textarea id="edit-photo-desc" class="form-input" rows="3" placeholder="Write a short description or memory..."></textarea>
             </div>
 
             <div class="form-group">
               <label for="edit-photo-tags">Tags (comma-separated)</label>
-              <input type="text" id="edit-photo-tags" class="form-input" placeholder="e.g. photo, portrait, ahmedabad">
+              <input type="text" id="edit-photo-tags" class="form-input" placeholder="e.g. photo, portrait, city">
             </div>
           </div>
         </div>
