@@ -584,7 +584,7 @@ function renderCategories() {
 /**
  * Filter, sort, and render photos
  */
-export function applyFilters() {
+export function applyFilters(animate = true) {
   let list = [...state.allPhotos];
 
   // 1. Filter by category
@@ -622,6 +622,13 @@ export function applyFilters() {
   });
 
   state.filteredPhotos = list;
+  if (galleryContainer) {
+    if (!animate) {
+      galleryContainer.classList.add('no-entrance-anim');
+    } else {
+      galleryContainer.classList.remove('no-entrance-anim');
+    }
+  }
   renderActiveView();
   updateStats();
 }
@@ -648,6 +655,7 @@ function createPhotoCard(photo, index) {
   card.setAttribute('tabindex', '0');
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label', `View ${photo.title || 'photo'}`);
+  card.setAttribute('data-id', photo.id || index);
   card.style.setProperty('--card-idx', index);
 
   const thumbUrl = photo.thumbnail || photo.url;
@@ -834,6 +842,118 @@ function renderGallery() {
     const card = createPhotoCard(photo, index);
     galleryContainer.appendChild(card);
   });
+}
+
+/**
+ * Update a photo card in place in the gallery without re-rendering or layout shift
+ */
+export function updatePhotoCard(photo) {
+  if (!photo) return;
+
+  // Update in state.allPhotos
+  const target = state.allPhotos.find(p => String(p.id) === String(photo.id) || p.url === photo.url);
+  if (target) {
+    Object.assign(target, photo);
+  }
+
+  // Update in state.filteredPhotos
+  const filteredTarget = state.filteredPhotos.find(p => String(p.id) === String(photo.id) || p.url === photo.url);
+  if (filteredTarget) {
+    Object.assign(filteredTarget, photo);
+  }
+
+  // Find card in DOM by data-id or photo-id
+  const card = document.querySelector(`.photo-card[data-id="${photo.id}"]`) ||
+               document.querySelector(`.card-edit-btn[data-id="${photo.id}"]`)?.closest('.photo-card');
+
+  if (card) {
+    // 1. Update thumbnail preview if updated
+    const thumbImg = card.querySelector('.photo-thumb');
+    if (thumbImg) {
+      const newUrl = photo.thumbnail || photo.url;
+      if (thumbImg.getAttribute('src') !== newUrl) {
+        thumbImg.src = newUrl;
+      }
+      thumbImg.alt = photo.title || 'Photo';
+    }
+
+    // 2. Update category badge
+    const badge = card.querySelector('.card-category-badge');
+    if (badge) {
+      badge.textContent = photo.category || 'Moments';
+    }
+
+    // 3. Update title
+    const titleEl = card.querySelector('.card-title');
+    if (titleEl) {
+      titleEl.textContent = photo.title || 'Untitled';
+    }
+
+    // 4. Update snippet / caption
+    let snippet = card.querySelector('.card-snippet');
+    if (photo.description) {
+      if (!snippet) {
+        snippet = document.createElement('p');
+        snippet.className = 'card-snippet';
+        if (titleEl) titleEl.after(snippet);
+      }
+      snippet.textContent = photo.description;
+    } else if (snippet) {
+      snippet.remove();
+    }
+
+    // 5. Update date
+    const dateChip = card.querySelector('.date-chip');
+    if (dateChip) {
+      dateChip.textContent = formatDate(photo.date);
+    }
+
+    // 6. Update location
+    let locChip = card.querySelector('.location-chip');
+    if (photo.location) {
+      if (!locChip) {
+        locChip = document.createElement('a');
+        locChip.target = '_blank';
+        locChip.rel = 'noopener noreferrer';
+        locChip.className = 'meta-chip location-chip location-link-chip';
+        locChip.onclick = (e) => e.stopPropagation();
+        const metaRow = card.querySelector('.card-meta-row');
+        if (metaRow) metaRow.prepend(locChip);
+      }
+      locChip.href = getGoogleMapsUrl(photo.location);
+      locChip.title = `Open ${formatLocationDisplayName(photo.location)} in Google Maps ↗`;
+      locChip.innerHTML = `
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        <span>${escapeHtml(formatLocationDisplayName(photo.location))}</span>
+        <svg class="external-icon" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+      `;
+    } else if (locChip) {
+      locChip.remove();
+    }
+
+    // 7. Update camera
+    let camChip = card.querySelector('.camera-chip');
+    if (photo.camera) {
+      if (!camChip) {
+        camChip = document.createElement('span');
+        camChip.className = 'meta-chip camera-chip';
+        const dateChip = card.querySelector('.date-chip');
+        if (dateChip) dateChip.before(camChip);
+      }
+      camChip.innerHTML = `
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        ${escapeHtml(photo.camera)}
+      `;
+    } else if (camChip) {
+      camChip.remove();
+    }
+
+    card.setAttribute('aria-label', `View ${photo.title || 'photo'}`);
+  }
+
+  // Update categories bar and counter
+  renderCategories();
+  updateStats();
 }
 
 /**

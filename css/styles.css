@@ -899,6 +899,20 @@ body {
   height: 100%;
 }
 
+.gallery-grid.masonry-view .photo-card {
+  height: auto;
+}
+.gallery-grid.masonry-view .photo-thumb {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.gallery-grid.no-entrance-anim .photo-card {
+  animation: none !important;
+}
+
 /* Card Styling */
 .photo-card {
   break-inside: avoid;
@@ -2317,7 +2331,12 @@ dialog:not([open]),
   display: none !important;
 }
 
-:is(html:not(.admin-mode), body:not(.admin-mode)) .admin-only {
+:root:not(.admin-mode) .admin-only,
+:root:not(.admin-mode) .card-edit-btn,
+:root:not(.admin-mode) .card-delete-btn,
+:root:not(.admin-mode) .lb-edit-btn,
+:root:not(.admin-mode) .lb-delete-btn,
+body:not(.admin-mode) .admin-only {
   display: none !important;
 }
 
@@ -5113,15 +5132,23 @@ body.has-custom-cursor .sound-toggle-btn {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
 }
 
+.edit-metadata-form-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .edit-metadata-body {
   padding: 1.35rem 1.75rem;
-  max-height: 72vh;
   overflow-y: auto;
+  flex: 1;
 }
 
 .edit-meta-grid {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 210px 1fr;
   gap: 1.6rem;
   align-items: start;
 }
@@ -5130,7 +5157,7 @@ body.has-custom-cursor .sound-toggle-btn {
     grid-template-columns: 1fr;
   }
   .edit-meta-thumb-col {
-    max-width: 200px;
+    max-width: 240px;
     margin: 0 auto 0.5rem;
   }
 }
@@ -5144,24 +5171,31 @@ body.has-custom-cursor .sound-toggle-btn {
 
 .edit-meta-thumb-wrap {
   width: 100%;
-  aspect-ratio: 1;
+  min-height: 180px;
+  max-height: 250px;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: #090d16;
+  background: rgba(15, 23, 42, 0.6);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0.35rem;
+  box-sizing: border-box;
 }
 [data-theme="light"] .edit-meta-thumb-wrap {
   background: #f1f5f9;
   border-color: rgba(0, 0, 0, 0.1);
 }
 .edit-meta-thumb-wrap img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 240px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  display: block;
 }
 
 .edit-studio-btn {

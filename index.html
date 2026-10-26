@@ -31,25 +31,58 @@
   </script>
 
   <meta name="theme-color" content="#0f172a">
-  <link rel="stylesheet" href="css/styles.css?v=20261023_studio_fix">
+  <link rel="stylesheet" href="css/styles.css?v=20261026_layout_fix">
 
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <script>
-    // Early admin check: admin UI renders ONLY when ?admin is in the URL.
-    // Refreshing without ?admin removes admin options.
+    // Early admin check:
+    // When visiting directly with ?admin, admin UI renders for this viewing session.
+    // The ?admin parameter is immediately stripped from the address bar via history.replaceState,
+    // so that when the user refreshes the page, the clean non-admin URL reloads and
+    // upload, edit, and delete options completely disappear.
+    // Additionally, if the navigation is detected as a page reload/refresh, admin options are immediately suppressed.
     (function() {
       try {
+        var isReload = false;
+        try {
+          var navEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+          if (navEntries && navEntries.length > 0) {
+            isReload = navEntries[0].type === 'reload';
+          } else if (window.performance && window.performance.navigation) {
+            isReload = window.performance.navigation.type === 1;
+          }
+        } catch (e) {}
+
         var p = new URLSearchParams(window.location.search);
-        var isAdmin = p.has('admin') && p.get('admin') !== 'false' && p.get('admin') !== '0' && p.get('admin') !== 'logout' && p.get('admin') !== 'no';
+        var hasAdminParam = p.has('admin') &&
+                            p.get('admin') !== 'false' &&
+                            p.get('admin') !== '0' &&
+                            p.get('admin') !== 'logout' &&
+                            p.get('admin') !== 'no';
+
         sessionStorage.removeItem('gallery_admin_active');
         localStorage.removeItem('gallery_admin_active');
+
+        var isAdmin = !isReload && hasAdminParam;
+
         if (isAdmin) {
           document.documentElement.classList.add('admin-mode');
+          window.__ADMIN_MODE_ACTIVE__ = true;
         } else {
           document.documentElement.classList.remove('admin-mode');
+          window.__ADMIN_MODE_ACTIVE__ = false;
+        }
+
+        // Clean ?admin from the browser address bar immediately so that pressing Refresh
+        // reloads the clean page without ?admin query param
+        if (p.has('admin')) {
+          var cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('admin');
+          var target = cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : '') + cleanUrl.hash;
+          window.history.replaceState(null, '', target || '/');
         }
       } catch (e) {}
     })();
@@ -1205,91 +1238,93 @@
         <button id="close-edit-dialog-btn" class="close-btn" aria-label="Close dialog">&times;</button>
       </div>
 
-      <form id="edit-metadata-form" class="modal-body edit-metadata-body">
+      <form id="edit-metadata-form" class="edit-metadata-form-wrapper">
         <input type="hidden" id="edit-photo-id">
         <input type="hidden" id="edit-photo-url">
 
-        <div class="edit-meta-grid">
-          <!-- Left: Thumbnail preview & Quick Actions -->
-          <div class="edit-meta-thumb-col">
-            <div class="edit-meta-thumb-wrap">
-              <img id="edit-preview-thumb" src="" alt="Photo thumbnail">
+        <div class="modal-body edit-metadata-body">
+          <div class="edit-meta-grid">
+            <!-- Left: Thumbnail preview & Quick Actions -->
+            <div class="edit-meta-thumb-col">
+              <div class="edit-meta-thumb-wrap">
+                <img id="edit-preview-thumb" src="" alt="Photo thumbnail">
+              </div>
+
+              <button type="button" id="edit-open-studio-btn" class="secondary-btn edit-studio-btn" title="Open Crop & Vintage Film Presets Studio">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
+                <span>Crop &amp; Filters 🎨</span>
+              </button>
+
+              <div class="edit-id-badge" title="Photo ID">
+                <span class="edit-id-label">ID</span>
+                <span class="edit-id-text" id="edit-photo-id-display">photo-id</span>
+              </div>
             </div>
 
-            <button type="button" id="edit-open-studio-btn" class="secondary-btn edit-studio-btn" title="Open Crop & Vintage Film Presets Studio">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"></path><path d="M18 22V8a2 2 0 0 0-2-2H2"></path></svg>
-              <span>Crop &amp; Filters 🎨</span>
-            </button>
+            <!-- Right: Inputs -->
+            <div class="edit-meta-inputs-col">
+              <div class="form-row">
+                <div class="form-group flex-2">
+                  <label for="edit-photo-title">Title <span class="required">*</span></label>
+                  <input type="text" id="edit-photo-title" class="form-input" required placeholder="Photo title">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="edit-photo-category">Category <span class="required">*</span></label>
+                  <select id="edit-photo-category" class="form-input" required>
+                    <option value="Random Clicks">Random Clicks</option>
+                    <option value="Personal & Moments">Personal & Moments</option>
+                    <option value="Street & City">Street & City</option>
+                    <option value="Nature & Outdoors">Nature & Outdoors</option>
+                    <option value="Portraits">Portraits</option>
+                    <option value="__custom__">+ Add Custom Category...</option>
+                  </select>
+                </div>
+              </div>
 
-            <div class="edit-id-badge" title="Photo ID">
-              <span class="edit-id-label">ID</span>
-              <span class="edit-id-text" id="edit-photo-id-display">photo-id</span>
+              <div class="form-group" id="edit-custom-category-group" hidden>
+                <label for="edit-custom-category">Custom Category Name</label>
+                <input type="text" id="edit-custom-category" class="form-input" placeholder="e.g. Travel 2026">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="edit-photo-date">Date Taken</label>
+                  <input type="date" id="edit-photo-date" class="form-input">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="edit-photo-camera">Camera / Device</label>
+                  <input type="text" id="edit-photo-camera" class="form-input" placeholder="e.g. iPhone 16 Pro, Sony A7 IV">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label for="edit-photo-location">Location / Place</label>
+                  <span class="field-hint-inline">City name or GPS coords (opens Google Maps)</span>
+                </div>
+                <div class="input-with-icon">
+                  <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                  <input type="text" id="edit-photo-location" class="form-input input-has-icon" placeholder="e.g. Ahmedabad, Gujarat or 23.0439, 72.5168">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="edit-photo-desc">Caption / Story</label>
+                <textarea id="edit-photo-desc" class="form-input" rows="3" placeholder="Write a short description or memory..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="edit-photo-tags">Tags (comma-separated)</label>
+                <input type="text" id="edit-photo-tags" class="form-input" placeholder="e.g. photo, portrait, city">
+              </div>
             </div>
           </div>
 
-          <!-- Right: Inputs -->
-          <div class="edit-meta-inputs-col">
-            <div class="form-row">
-              <div class="form-group flex-2">
-                <label for="edit-photo-title">Title <span class="required">*</span></label>
-                <input type="text" id="edit-photo-title" class="form-input" required placeholder="Photo title">
-              </div>
-              <div class="form-group flex-1">
-                <label for="edit-photo-category">Category <span class="required">*</span></label>
-                <select id="edit-photo-category" class="form-input" required>
-                  <option value="Random Clicks">Random Clicks</option>
-                  <option value="Personal & Moments">Personal & Moments</option>
-                  <option value="Street & City">Street & City</option>
-                  <option value="Nature & Outdoors">Nature & Outdoors</option>
-                  <option value="Portraits">Portraits</option>
-                  <option value="__custom__">+ Add Custom Category...</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group" id="edit-custom-category-group" hidden>
-              <label for="edit-custom-category">Custom Category Name</label>
-              <input type="text" id="edit-custom-category" class="form-input" placeholder="e.g. Travel 2026">
-            </div>
-
-            <div class="form-row">
-              <div class="form-group flex-1">
-                <label for="edit-photo-date">Date Taken</label>
-                <input type="date" id="edit-photo-date" class="form-input">
-              </div>
-              <div class="form-group flex-1">
-                <label for="edit-photo-camera">Camera / Device</label>
-                <input type="text" id="edit-photo-camera" class="form-input" placeholder="e.g. iPhone 16 Pro, Sony A7 IV">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <div class="form-label-row">
-                <label for="edit-photo-location">Location / Place</label>
-                <span class="field-hint-inline">City name or GPS coords (opens Google Maps)</span>
-              </div>
-              <div class="input-with-icon">
-                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                <input type="text" id="edit-photo-location" class="form-input input-has-icon" placeholder="e.g. Ahmedabad, Gujarat or 23.0439, 72.5168">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="edit-photo-desc">Caption / Story</label>
-              <textarea id="edit-photo-desc" class="form-input" rows="3" placeholder="Write a short description or memory..."></textarea>
-            </div>
-
-            <div class="form-group">
-              <label for="edit-photo-tags">Tags (comma-separated)</label>
-              <input type="text" id="edit-photo-tags" class="form-input" placeholder="e.g. photo, portrait, city">
-            </div>
+          <!-- Sync Progress -->
+          <div id="edit-meta-status" class="edit-meta-status-banner" hidden>
+            <div class="otp-spinner" id="edit-meta-spinner"></div>
+            <span id="edit-meta-status-msg">Saving changes to GitHub repository...</span>
           </div>
-        </div>
-
-        <!-- Sync Progress -->
-        <div id="edit-meta-status" class="edit-meta-status-banner" hidden>
-          <div class="otp-spinner" id="edit-meta-spinner"></div>
-          <span id="edit-meta-status-msg">Saving changes to GitHub repository...</span>
         </div>
 
         <div class="modal-footer edit-meta-footer">
@@ -1334,9 +1369,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
-  <script type="module" src="js/gallery.js?v=20261023_studio_fix"></script>
-  <script type="module" src="js/uploader.js?v=20261023_studio_fix"></script>
-  <script type="module" src="js/cursor.js?v=20261023_studio_fix"></script>
+  <script type="module" src="js/gallery.js?v=20261026_layout_fix"></script>
+  <script type="module" src="js/uploader.js?v=20261026_layout_fix"></script>
+  <script type="module" src="js/cursor.js?v=20261026_layout_fix"></script>
 </body>
 </html>
 

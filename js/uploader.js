@@ -14,8 +14,9 @@ import {
   updateLightboxView,
   saveLocalPhoto,
   getLocalPhotos,
-  removeLocalPhoto
-} from './gallery.js?v=20261023_studio_fix';
+  removeLocalPhoto,
+  updatePhotoCard
+} from './gallery.js?v=20261026_layout_fix';
 
 // ==========================================================
 // DOM ELEMENTS
@@ -152,36 +153,64 @@ let activePhotoBeingEdited = null; // Photo object currently being edited in edi
 
 /**
  * Admin / Owner access control
- * Options appear ONLY when ?admin is present in the URL.
- * Normal visitors or refreshing without ?admin hides upload, edit, and delete options.
+ * Options appear ONLY when intentionally accessed with ?admin in the URL.
+ * When the page is refreshed, the upload, edit, and delete options completely disappear.
  */
 function checkAdminAccess() {
+  let isReload = false;
+  try {
+    const navEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+    if (navEntries && navEntries.length > 0) {
+      isReload = navEntries[0].type === 'reload';
+    } else if (window.performance && window.performance.navigation) {
+      isReload = window.performance.navigation.type === 1;
+    }
+  } catch (e) {}
+
   const urlParams = new URLSearchParams(window.location.search);
-  const isAdmin = urlParams.has('admin') &&
+  const paramAdmin = urlParams.has('admin') &&
                   urlParams.get('admin') !== 'false' &&
                   urlParams.get('admin') !== '0' &&
                   urlParams.get('admin') !== 'logout' &&
                   urlParams.get('admin') !== 'no';
 
-  // Purge lingering legacy storage keys so refresh behavior is 100% driven by URL
+  // Purge lingering legacy storage keys so refresh behavior is never persisted
   try {
     sessionStorage.removeItem('gallery_admin_active');
     localStorage.removeItem('gallery_admin_active');
   } catch (e) {}
+
+  // Clean URL immediately so refresh loads the clean non-admin URL
+  if (urlParams.has('admin')) {
+    try {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('admin');
+      const target = cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : '') + cleanUrl.hash;
+      window.history.replaceState(null, '', target || '/');
+    } catch (e) {}
+  }
+
+  // Admin options appear ONLY if:
+  // 1) NOT a page reload/refresh
+  // AND
+  // 2) ?admin was present or early check verified admin mode
+  const isAdmin = !isReload && (paramAdmin || window.__ADMIN_MODE_ACTIVE__ === true || document.documentElement.classList.contains('admin-mode'));
 
   const lbDeleteBtn = document.getElementById('lb-delete-btn');
   const lbEditBtn = document.getElementById('lb-edit-btn');
 
   if (isAdmin) {
     document.documentElement.classList.add('admin-mode');
-    document.body.classList.add('admin-mode');
+    if (document.body) document.body.classList.add('admin-mode');
+    window.__ADMIN_MODE_ACTIVE__ = true;
     if (openUploadBtn) openUploadBtn.hidden = false;
     if (footerUploadBtn) footerUploadBtn.hidden = false;
     if (lbDeleteBtn) lbDeleteBtn.hidden = false;
     if (lbEditBtn) lbEditBtn.hidden = false;
   } else {
     document.documentElement.classList.remove('admin-mode');
-    document.body.classList.remove('admin-mode');
+    if (document.body) document.body.classList.remove('admin-mode');
+    window.__ADMIN_MODE_ACTIVE__ = false;
     if (openUploadBtn) openUploadBtn.hidden = true;
     if (footerUploadBtn) footerUploadBtn.hidden = true;
     if (lbDeleteBtn) lbDeleteBtn.hidden = true;
@@ -475,6 +504,18 @@ function setupUploaderEvents() {
   // Re-check admin status if URL changes via back/forward navigation
   window.addEventListener('popstate', () => {
     checkAdminAccess();
+  });
+
+  // Ensure ?admin is always stripped before page unloads/refreshes
+  window.addEventListener('beforeunload', () => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('admin')) {
+        url.searchParams.delete('admin');
+        const target = url.pathname + (url.search ? url.search : '') + url.hash;
+        window.history.replaceState(null, '', target || '/');
+      }
+    } catch (e) {}
   });
 
   // Modal close
@@ -1797,12 +1838,19 @@ function saveMetadataLocally() {
   if (activePhotoBeingEdited.thumbnail && activePhotoBeingEdited.thumbnail.startsWith('data:image/')) {
     updated.thumbnail = activePhotoBeingEdited.thumbnail;
   }
+  if (activePhotoBeingEdited.cropAspect) updated.cropAspect = activePhotoBeingEdited.cropAspect;
+  if (activePhotoBeingEdited.preset) updated.preset = activePhotoBeingEdited.preset;
+  if (activePhotoBeingEdited.grain) updated.grain = activePhotoBeingEdited.grain;
 
-  // Update in-memory state
+  // Update in-memory state and persist to browser storage
   const target = state.allPhotos.find(p => p.id === activePhotoBeingEdited.id || p.url === activePhotoBeingEdited.url);
   if (target) {
     Object.assign(target, updated);
+    saveLocalPhoto(target);
   }
+
+  // Update photo card in-place (no jarring layout shifts or animations)
+  updatePhotoCard(updated);
 
   // Trigger JSON download
   const blob = new Blob([JSON.stringify(state.allPhotos, null, 2)], { type: 'application/json' });
@@ -1811,7 +1859,6 @@ function saveMetadataLocally() {
   a.download = 'photos.json';
   a.click();
 
-  applyFilters();
   updateLightboxView();
   closeModal(editMetadataDialog);
   showToast('💾 Photo details updated locally & photos.json downloaded!', 'success');
@@ -1864,6 +1911,9 @@ async function saveMetadataToGitHub() {
     if (activePhotoBeingEdited.thumbnail && activePhotoBeingEdited.thumbnail.startsWith('data:image/')) {
       updated.thumbnail = activePhotoBeingEdited.thumbnail;
     }
+    if (activePhotoBeingEdited.cropAspect) updated.cropAspect = activePhotoBeingEdited.cropAspect;
+    if (activePhotoBeingEdited.preset) updated.preset = activePhotoBeingEdited.preset;
+    if (activePhotoBeingEdited.grain) updated.grain = activePhotoBeingEdited.grain;
 
     // If photo was re-cropped or film filtered in studio, commit updated image file
     if (activePhotoBeingEdited.editedBase64 && activePhotoBeingEdited.url && activePhotoBeingEdited.url.startsWith('images/')) {
@@ -1940,12 +1990,13 @@ async function saveMetadataToGitHub() {
       throw new Error(`GitHub commit failed: ${err.message || jsonPutRes.statusText}`);
     }
 
-    // 4. Update in-memory state
+    // 4. Update in-memory state, persist locally, and update card in-place
     const localTarget = state.allPhotos.find(p => p.id === activePhotoBeingEdited.id || p.url === activePhotoBeingEdited.url);
     if (localTarget) {
       Object.assign(localTarget, updated);
+      saveLocalPhoto(localTarget);
     }
-    applyFilters();
+    updatePhotoCard(updated);
     updateLightboxView();
 
     if (editMetaStatus) editMetaStatus.hidden = true;
