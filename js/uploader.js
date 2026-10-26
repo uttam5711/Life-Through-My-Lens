@@ -16,7 +16,7 @@ import {
   getLocalPhotos,
   removeLocalPhoto,
   updatePhotoCard
-} from './gallery.js?v=20261026_layout_fix';
+} from './gallery.js?v=20261026_heic_fix';
 
 // ==========================================================
 // DOM ELEMENTS
@@ -39,6 +39,9 @@ const saveLocalBtn = document.getElementById('save-local-btn');
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
 const dropzoneEmpty = document.getElementById('dropzone-empty');
+const dropzoneLoading = document.getElementById('dropzone-loading');
+const dropzoneLoadingTitle = document.getElementById('dropzone-loading-title');
+const dropzoneLoadingHint = document.getElementById('dropzone-loading-hint');
 const dropzonePreview = document.getElementById('dropzone-preview');
 const previewImg = document.getElementById('preview-img');
 const previewInfo = document.getElementById('preview-info');
@@ -871,8 +874,9 @@ window.loadDemoBatch = loadDemoBatch;
 function isHeifFile(file) {
   if (!file) return false;
   const name = (file.name || '').toLowerCase();
+  const type = (file.type || '').toLowerCase();
   return name.endsWith('.heic') || name.endsWith('.heif') ||
-         (file.type && (file.type.includes('heic') || file.type.includes('heif')));
+         type.includes('heic') || type.includes('heif');
 }
 
 /**
@@ -880,45 +884,48 @@ function isHeifFile(file) {
  */
 function isSupportedImageFile(file) {
   if (!file) return false;
-  if (file.type && (file.type.startsWith('image/') || file.type.includes('heic') || file.type.includes('heif'))) {
+  const name = (file.name || '').toLowerCase();
+  const type = (file.type || '').toLowerCase();
+  if (type && (type.startsWith('image/') || type.includes('heic') || type.includes('heif'))) {
     return true;
   }
-  const name = (file.name || '').toLowerCase();
   return /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(name);
 }
 
 /**
- * Dynamically load heic2any library if not present
+ * Dynamically load heic2any library with fallback CDN mirrors
  */
 function loadHeicLibrary() {
   return new Promise((resolve) => {
     if (typeof window.heic2any === 'function') {
-      resolve();
+      resolve(true);
       return;
     }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-    script.onload = () => resolve();
-    script.onerror = () => {
-      console.warn('Failed to load heic2any library from CDN');
-      resolve();
-    };
-    document.head.appendChild(script);
-  });
-}
-
-/**
- * Check if current browser can decode HEIC natively (e.g. Safari on macOS / iOS)
- */
-function canDecodeNatively(file) {
-  return new Promise((resolve) => {
-    if ('createImageBitmap' in window) {
-      createImageBitmap(file)
-        .then(() => resolve(true))
-        .catch(() => resolve(false));
-    } else {
-      resolve(false);
+    const cdnUrls = [
+      'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
+      'https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js'
+    ];
+    let idx = 0;
+    function tryNext() {
+      if (idx >= cdnUrls.length) {
+        console.warn('Failed to load heic2any library from all CDNs');
+        resolve(false);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = cdnUrls[idx++];
+      script.onload = () => {
+        if (typeof window.heic2any === 'function') {
+          resolve(true);
+        } else {
+          tryNext();
+        }
+      };
+      script.onerror = () => tryNext();
+      document.head.appendChild(script);
     }
+    tryNext();
   });
 }
 
@@ -928,35 +935,93 @@ function canDecodeNatively(file) {
 async function ensureJpegIfHeif(file) {
   if (!isHeifFile(file)) return file;
 
-  // If browser can natively decode HEIC, no conversion required
-  const nativeOk = await canDecodeNatively(file);
-  if (nativeOk) {
-    return file;
+  showToast(`📱 Converting iPhone HEIC photo (${file.name})...`, 'info');
+  showInlineFeedback(`📱 Converting iPhone HEIC photo (${file.name}) to high-res JPEG, please wait...`, 'info');
+
+  // STRATEGY 1: Native browser decoding (Fastest, zero-dependency, works on macOS & iOS Safari)
+  if ('createImageBitmap' in window) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+
+      const blob = await new Promise((res, rej) => {
+        canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas conversion to JPEG blob failed')), 'image/jpeg', 0.92);
+      });
+
+      const cleanName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+      showToast(`✨ iPhone HEIC photo converted to JPEG!`, 'success');
+      return new File([blob], cleanName, { type: 'image/jpeg', lastModified: file.lastModified || Date.now() });
+    } catch (nativeErr) {
+      console.log('Native HEIC decoding not supported in this browser, trying heic2any fallback...', nativeErr);
+    }
   }
 
-  showToast(`📱 Converting iPhone HEIF/HEIC (${file.name}) to high-res JPEG...`, 'info');
-
+  // STRATEGY 2: WebAssembly decoding via heic2any (Chrome, Edge, Firefox)
   if (typeof window.heic2any !== 'function') {
     await loadHeicLibrary();
   }
 
   if (typeof window.heic2any === 'function') {
     try {
-      const convertedBlob = await window.heic2any({
-        blob: file,
-        toType: 'image/jpeg',
-        quality: 0.92
-      });
-      const finalBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+      let conversionResult;
+      try {
+        conversionResult = await window.heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.90,
+          multiple: false
+        });
+      } catch (err) {
+        // If error indicates multiple frames (e.g. iPhone Live Photo, burst, or depth map), retry with multiple: true
+        const msg = String((err && err.message) || '').toLowerCase();
+        if (err && (err.code === 1 || msg.includes('multiple') || msg.includes('images'))) {
+          conversionResult = await window.heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.90,
+            multiple: true
+          });
+        } else {
+          throw err;
+        }
+      }
+
+      const finalBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+      if (!finalBlob || finalBlob.size === 0) {
+        throw new Error('Converted blob is empty');
+      }
+
       const cleanName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
-      return new File([finalBlob], cleanName, { type: 'image/jpeg' });
-    } catch (err) {
-      console.warn('heic2any conversion fallback:', err);
-      return file;
+      showToast(`✨ iPhone HEIC photo converted to JPEG!`, 'success');
+      return new File([finalBlob], cleanName, { type: 'image/jpeg', lastModified: file.lastModified || Date.now() });
+    } catch (wasmErr) {
+      console.error('heic2any conversion failed:', wasmErr);
+      throw new Error(`Could not decode iPhone HEIC photo (${file.name}): ${wasmErr.message || 'Format unsupported'}. Please upload as JPG/PNG.`);
     }
   }
 
-  return file;
+  throw new Error('HEIC image decoding library could not be loaded. Please check your internet connection or upload as JPG/PNG.');
+}
+
+/**
+ * Toggle Dropzone Loading State with clear visual progress
+ */
+function setDropzoneLoading(isLoading, title = 'Processing photo...', hint = 'Converting format & optimizing quality') {
+  if (!dropzoneEmpty || !dropzoneLoading) return;
+  if (isLoading) {
+    dropzoneEmpty.hidden = true;
+    if (dropzonePreview) dropzonePreview.hidden = true;
+    dropzoneLoading.hidden = false;
+    if (dropzoneLoadingTitle) dropzoneLoadingTitle.innerHTML = `<strong>${escapeHtml(title)}</strong>`;
+    if (dropzoneLoadingHint) dropzoneLoadingHint.textContent = hint;
+  } else {
+    dropzoneLoading.hidden = true;
+  }
 }
 
 /**
@@ -995,17 +1060,18 @@ async function handleFilesSelected(fileList) {
  */
 async function processSingleFile(file) {
   let targetFile = file;
-  if (isHeifFile(file)) {
-    targetFile = await ensureJpegIfHeif(file);
-  }
-
-  showToast('Optimizing photo...', 'success');
-
   try {
+    if (isHeifFile(file)) {
+      setDropzoneLoading(true, 'Converting iPhone Photo...', `Decoding HEIC (${file.name}) to high-res JPEG`);
+      targetFile = await ensureJpegIfHeif(file);
+    }
+
+    setDropzoneLoading(true, 'Optimizing photo...', 'Compressing for web gallery');
     const compressed = await compressImage(targetFile, 1920, 0.85);
     currentProcessedImage = compressed;
 
     // Show preview
+    setDropzoneLoading(false);
     previewImg.src = compressed.previewUrl;
     previewInfo.textContent = `${compressed.width} × ${compressed.height} • ${compressed.sizeKb} KB (optimized)`;
     dropzoneEmpty.hidden = true;
@@ -1019,10 +1085,13 @@ async function processSingleFile(file) {
 
     if (downloadPhotoFileBtn) downloadPhotoFileBtn.disabled = false;
     if (downloadJsonFileBtn) downloadJsonFileBtn.disabled = false;
+    clearInlineFeedback();
     updateJsonSnippetPreview();
   } catch (error) {
     console.error('Image processing failed:', error);
-    showToast('Could not process this image file', 'error');
+    resetDropzone();
+    showInlineFeedback(error.message || 'Could not process this image file', 'error');
+    showToast(error.message || 'Could not process this image file', 'error');
   }
 }
 
@@ -1030,7 +1099,7 @@ async function processSingleFile(file) {
  * Process multiple image files into batchQueue (with HEIF auto-conversion)
  */
 async function processBatchFiles(files) {
-  showToast(`Optimizing batch of ${files.length} photos...`, 'success');
+  setDropzoneLoading(true, 'Processing batch photos...', `Preparing ${files.length} photos`);
   batchQueue = [];
 
   const defaultDate = photoDateInput ? photoDateInput.value : new Date().toISOString().split('T')[0];
@@ -1039,11 +1108,13 @@ async function processBatchFiles(files) {
 
   for (let i = 0; i < files.length; i++) {
     let file = files[i];
-    if (isHeifFile(file)) {
-      file = await ensureJpegIfHeif(file);
-    }
-
     try {
+      if (isHeifFile(file)) {
+        setDropzoneLoading(true, `Converting photo ${i + 1}/${files.length}...`, `Decoding HEIC (${file.name})`);
+        file = await ensureJpegIfHeif(file);
+      }
+
+      setDropzoneLoading(true, `Optimizing photo ${i + 1}/${files.length}...`, file.name);
       const compressed = await compressImage(file, 1920, 0.85);
       const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 
@@ -1071,8 +1142,11 @@ async function processBatchFiles(files) {
       });
     } catch (err) {
       console.warn('Failed to compress one batch file:', file.name, err);
+      showToast(`Skipped ${file.name}: ${err.message}`, 'error');
     }
   }
+
+  setDropzoneLoading(false);
 
   // Update dropzone UI
   if (batchQueue.length > 0) {
@@ -1080,6 +1154,7 @@ async function processBatchFiles(files) {
     previewInfo.textContent = `Batch of ${batchQueue.length} photos ready for review`;
     dropzoneEmpty.hidden = true;
     dropzonePreview.hidden = false;
+    clearInlineFeedback();
     renderBatchQueue();
     if (downloadPhotoFileBtn) downloadPhotoFileBtn.disabled = false;
     if (downloadJsonFileBtn) downloadJsonFileBtn.disabled = false;
@@ -1087,6 +1162,7 @@ async function processBatchFiles(files) {
     showToast(`Loaded ${batchQueue.length} photos into the batch queue!`, 'success');
   } else {
     resetDropzone();
+    showInlineFeedback('None of the selected photos could be processed.', 'error');
   }
 }
 
@@ -1262,6 +1338,7 @@ function resetDropzone() {
   batchQueue = [];
   if (fileInput) fileInput.value = '';
   if (dropzoneEmpty) dropzoneEmpty.hidden = false;
+  if (dropzoneLoading) dropzoneLoading.hidden = true;
   if (dropzonePreview) dropzonePreview.hidden = true;
   if (previewImg) previewImg.src = '';
   if (batchUploadSection) batchUploadSection.hidden = true;
@@ -1277,12 +1354,94 @@ function resetDropzone() {
  */
 function compressImage(file, maxDimension = 1600, quality = 0.82) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (e) => {
+    // Strategy A: createImageBitmap for fast, hardware-accelerated decoding
+    if ('createImageBitmap' in window) {
+      createImageBitmap(file)
+        .then((bitmap) => {
+          let width = bitmap.width;
+          let height = bitmap.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0, width, height);
+          bitmap.close();
+
+          finishCanvasCompression(canvas, width, height, quality);
+        })
+        .catch(() => {
+          fallbackWithImgElement();
+        });
+    } else {
+      fallbackWithImgElement();
+    }
+
+    function finishCanvasCompression(canvas, width, height, q) {
+      let dataUrl = canvas.toDataURL('image/jpeg', q);
+      let base64Data = dataUrl.split(',')[1];
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Canvas toBlob failed'));
+          return;
+        }
+
+        // If compressed image is larger than 850 KB, compress again with lower quality
+        // to guarantee GitHub Contents API never rejects with 422
+        if (blob.size > 850 * 1024 && q > 0.65) {
+          const lowerQuality = Math.max(0.65, q - 0.15);
+          dataUrl = canvas.toDataURL('image/jpeg', lowerQuality);
+          base64Data = dataUrl.split(',')[1];
+          canvas.toBlob((smallerBlob) => {
+            completeResolve(smallerBlob || blob, dataUrl, base64Data, width, height);
+          }, 'image/jpeg', lowerQuality);
+        } else {
+          completeResolve(blob, dataUrl, base64Data, width, height);
+        }
+      }, 'image/jpeg', q);
+    }
+
+    function completeResolve(blob, dataUrl, base64Data, width, height) {
+      const sizeKb = Math.round(blob.size / 1024);
+      const timestamp = Date.now();
+      const cleanBase = file.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30);
+      const filename = `photo-${cleanBase}-${timestamp}.jpg`;
+
       const img = new Image();
-      img.src = e.target.result;
+      img.src = dataUrl;
+
+      resolve({
+        file,
+        rawImage: img,
+        blob,
+        base64: base64Data,
+        previewUrl: dataUrl,
+        filename,
+        width,
+        height,
+        sizeKb,
+        cropAspect: 'original',
+        preset: 'none',
+        grain: 'none'
+      });
+    }
+
+    function fallbackWithImgElement() {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
       img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
         let width = img.width;
         let height = img.height;
 
@@ -1302,48 +1461,14 @@ function compressImage(file, maxDimension = 1600, quality = 0.82) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        const base64Data = dataUrl.split(',')[1];
-
-        canvas.toBlob((blob) => {
-          const sizeKb = Math.round(blob.size / 1024);
-          const timestamp = Date.now();
-          const cleanBase = file.name.replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30);
-          const filename = `photo-${cleanBase}-${timestamp}.jpg`;
-
-          resolve({
-            file,
-            rawImage: img,
-            blob,
-            base64: base64Data,
-            previewUrl: dataUrl,
-            filename,
-            width,
-            height,
-            sizeKb,
-            cropAspect: 'original',
-            preset: 'none',
-            grain: 'none'
-          });
-        }, 'image/jpeg', quality);
+        finishCanvasCompression(canvas, width, height, quality);
       };
-      img.onerror = async (err) => {
-        if (isHeifFile(file)) {
-          try {
-            const converted = await ensureJpegIfHeif(file);
-            if (converted !== file) {
-              const res = await compressImage(converted, maxDimension, quality);
-              resolve(res);
-              return;
-            }
-          } catch (e2) {
-            console.error('HEIF rescue conversion error:', e2);
-          }
-        }
-        reject(err);
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error(`Failed to load image: ${file.name}`));
       };
-    };
-    reader.onerror = reject;
+      img.src = objectUrl;
+    }
   });
 }
 

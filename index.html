@@ -31,7 +31,7 @@
   </script>
 
   <meta name="theme-color" content="#0f172a">
-  <link rel="stylesheet" href="css/styles.css?v=20261026_layout_fix">
+  <link rel="stylesheet" href="css/styles.css?v=20261026_heic_fix">
 
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -670,7 +670,7 @@
             <!-- LEFT COLUMN: PHOTO DROPZONE & PREVIEW -->
             <div class="upload-media-column">
               <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Click to browse or drop photos">
-                <input type="file" id="file-input" accept="image/*,.heic,.heif,image/heic,image/heif" multiple class="file-input-hidden" aria-label="Choose photo file">
+                <input type="file" id="file-input" accept="image/*,.heic,.heif,.HEIC,.HEIF,image/heic,image/heif,image/heic-sequence,image/heif-sequence" multiple class="file-input-hidden" aria-label="Choose photo file">
                 
                 <div class="dropzone-empty" id="dropzone-empty">
                   <div class="dropzone-icon">
@@ -685,6 +685,12 @@
                   <button type="button" id="demo-batch-btn" class="batch-demo-pill" title="Test batch upload with 3 sample photos">
                     <span>⚡ Try 3-Photo Demo Batch</span>
                   </button>
+                </div>
+
+                <div class="dropzone-loading" id="dropzone-loading" hidden>
+                  <div class="otp-spinner"></div>
+                  <p class="dropzone-prompt" id="dropzone-loading-title"><strong>Processing photo...</strong></p>
+                  <p class="dropzone-hint" id="dropzone-loading-hint">Converting iPhone HEIC format &amp; optimizing quality</p>
                 </div>
                 
                 <div class="dropzone-preview" id="dropzone-preview" hidden>
@@ -1369,9 +1375,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
-  <script type="module" src="js/gallery.js?v=20261026_layout_fix"></script>
-  <script type="module" src="js/uploader.js?v=20261026_layout_fix"></script>
-  <script type="module" src="js/cursor.js?v=20261026_layout_fix"></script>
+  <script type="module" src="js/gallery.js?v=20261026_heic_fix"></script>
+  <script type="module" src="js/uploader.js?v=20261026_heic_fix"></script>
+  <script type="module" src="js/cursor.js?v=20261026_heic_fix"></script>
 </body>
 </html>
 
