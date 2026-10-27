@@ -1,5 +1,19 @@
 [
   {
+    "id": "photo-1793076914687",
+    "title": "IMG 0180",
+    "category": "Cafe",
+    "url": "images/photo-img-0180-1793076849998.jpg",
+    "thumbnail": "images/photo-img-0180-1793076849998.jpg",
+    "date": "2026-10-27",
+    "description": "Cafe",
+    "location": "Surat",
+    "camera": "IPhone 17 Pro Max",
+    "tags": [
+      "photo"
+    ]
+  },
+  {
     "id": "photo-1792733673420",
     "title": "Office Time",
     "category": "Personal & Moments",
