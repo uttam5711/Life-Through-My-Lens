@@ -16,7 +16,7 @@ import {
   getLocalPhotos,
   removeLocalPhoto,
   updatePhotoCard
-} from './gallery.js?v=20261026_modern_heic';
+} from './gallery.js?v=20261027_permanent_heic';
 
 // ==========================================================
 // DOM ELEMENTS
@@ -237,6 +237,13 @@ function showInlineFeedback(msg, type = 'info') {
   uploadInlineFeedback.hidden = false;
   uploadInlineFeedback.className = `upload-inline-feedback ${type}`;
   uploadInlineFeedback.textContent = msg;
+}
+
+/**
+ * Clear the inline feedback banner
+ */
+function clearInlineFeedback() {
+  showInlineFeedback('');
 }
 
 /**
@@ -875,8 +882,8 @@ function isHeifFile(file) {
   if (!file) return false;
   const name = (file.name || '').toLowerCase();
   const type = (file.type || '').toLowerCase();
-  return name.endsWith('.heic') || name.endsWith('.heif') ||
-         type.includes('heic') || type.includes('heif');
+  return name.endsWith('.heic') || name.endsWith('.heif') || name.endsWith('.hif') || name.endsWith('.heics') ||
+         type.includes('heic') || type.includes('heif') || type.includes('heic-sequence') || type.includes('heif-sequence');
 }
 
 /**
@@ -889,19 +896,20 @@ function isSupportedImageFile(file) {
   if (type && (type.startsWith('image/') || type.includes('heic') || type.includes('heif'))) {
     return true;
   }
-  return /\.(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/i.test(name);
+  return /\.(jpe?g|png|webp|gif|bmp|heic|heif|hif|heics|avif)$/i.test(name);
 }
 
 /**
- * Dynamically load modern heic-to WASM library (supports modern iPhone 12/13/14/15/16 HEIC profiles)
+ * Dynamically load modern heic-to WASM library (local bundle first, then CDN mirrors)
  */
 function loadModernHeicLibrary() {
   return new Promise((resolve) => {
-    if (typeof window.HeicTo === 'function') {
+    if (typeof window.HeicTo === 'function' || typeof window.heicTo === 'function') {
       resolve(true);
       return;
     }
     const cdnUrls = [
+      'js/vendor/heic-to.js',
       'https://cdn.jsdelivr.net/npm/heic-to/dist/iife/heic-to.js',
       'https://unpkg.com/heic-to/dist/iife/heic-to.js'
     ];
@@ -914,7 +922,7 @@ function loadModernHeicLibrary() {
       const script = document.createElement('script');
       script.src = cdnUrls[idx++];
       script.onload = () => {
-        if (typeof window.HeicTo === 'function') {
+        if (typeof window.HeicTo === 'function' || typeof window.heicTo === 'function') {
           resolve(true);
         } else {
           tryNext();
@@ -928,7 +936,7 @@ function loadModernHeicLibrary() {
 }
 
 /**
- * Dynamically load heic2any library with fallback CDN mirrors
+ * Dynamically load heic2any library (local bundle first, then CDN mirrors)
  */
 function loadHeicLibrary() {
   return new Promise((resolve) => {
@@ -937,6 +945,7 @@ function loadHeicLibrary() {
       return;
     }
     const cdnUrls = [
+      'js/vendor/heic2any.min.js',
       'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
       'https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js',
       'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js'
@@ -944,7 +953,7 @@ function loadHeicLibrary() {
     let idx = 0;
     function tryNext() {
       if (idx >= cdnUrls.length) {
-        console.warn('Failed to load heic2any library from all CDNs');
+        console.warn('Failed to load heic2any library from all sources');
         resolve(false);
         return;
       }
@@ -973,38 +982,50 @@ async function ensureJpegIfHeif(file) {
   showToast(`📱 Converting iPhone HEIC photo (${file.name})...`, 'info');
   showInlineFeedback(`📱 Converting iPhone HEIC photo (${file.name}) to high-res JPEG, please wait...`, 'info');
 
-  const cleanName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+  const cleanName = file.name.replace(/\.(heic|heif|hif|heics)$/i, '.jpg');
 
-  // STRATEGY 1: Native browser decoding (Fastest, zero-dependency, works on macOS & iOS Safari)
+  // STRATEGY 1: Native browser decoding (Fastest, zero-dependency, works natively on macOS & iOS Safari and modern Chromium)
   if ('createImageBitmap' in window) {
     try {
-      const bitmap = await createImageBitmap(file);
-      const canvas = document.createElement('canvas');
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(bitmap, 0, 0);
-      bitmap.close();
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch (optErr) {
+        bitmap = await createImageBitmap(file);
+      }
 
-      const blob = await new Promise((res, rej) => {
-        canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas conversion to JPEG blob failed')), 'image/jpeg', 0.92);
-      });
+      if (bitmap && bitmap.width > 0 && bitmap.height > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
 
-      showToast(`✨ iPhone HEIC photo converted to JPEG!`, 'success');
-      return new File([blob], cleanName, { type: 'image/jpeg', lastModified: file.lastModified || Date.now() });
+        const blob = await new Promise((res, rej) => {
+          canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas conversion to JPEG blob failed')), 'image/jpeg', 0.92);
+        });
+
+        if (blob && blob.size > 0) {
+          showToast(`✨ iPhone HEIC photo converted to JPEG!`, 'success');
+          return new File([blob], cleanName, { type: 'image/jpeg', lastModified: file.lastModified || Date.now() });
+        }
+      }
     } catch (nativeErr) {
       console.log('Native HEIC decoding not supported in this browser, trying modern HeicTo WASM decoder...', nativeErr);
     }
   }
 
-  // STRATEGY 2: Modern HeicTo WebAssembly decoder (Specifically fixes ERR_LIBHEIF for modern iPhone 12/13/14/15/16 in Chrome/Edge/Firefox)
-  if (typeof window.HeicTo !== 'function') {
+  // STRATEGY 2: Modern HeicTo WebAssembly decoder (Specifically handles modern iPhone 12/13/14/15/16/17 profiles in Chrome/Edge/Firefox)
+  const getHeicToFn = () => window.HeicTo || window.heicTo || (window.HeicTo && window.HeicTo.default);
+  if (typeof getHeicToFn() !== 'function') {
     await loadModernHeicLibrary();
   }
 
-  if (typeof window.HeicTo === 'function') {
+  const activeHeicTo = getHeicToFn();
+  if (typeof activeHeicTo === 'function') {
     try {
-      const convertedBlob = await window.HeicTo({
+      const convertedBlob = await activeHeicTo({
         blob: file,
         type: 'image/jpeg',
         quality: 0.90
@@ -1018,7 +1039,7 @@ async function ensureJpegIfHeif(file) {
     }
   }
 
-  // STRATEGY 3: Legacy heic2any WebAssembly decoder (Fallback)
+  // STRATEGY 3: Legacy heic2any WebAssembly decoder (Fallback for multi-frame / Live Photos / burst)
   if (typeof window.heic2any !== 'function') {
     await loadHeicLibrary();
   }
@@ -1056,6 +1077,39 @@ async function ensureJpegIfHeif(file) {
     } catch (wasmErr) {
       console.error('heic2any conversion fallback failed:', wasmErr);
     }
+  }
+
+  // STRATEGY 4: Native Image object with object URL (WebKit / Safari fallback)
+  try {
+    const objectUrl = URL.createObjectURL(file);
+    const convertedFromImg = await new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(objectUrl);
+          canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas blob failed')), 'image/jpeg', 0.92);
+        } catch (e) {
+          URL.revokeObjectURL(objectUrl);
+          rej(e);
+        }
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(objectUrl);
+        rej(e);
+      };
+      img.src = objectUrl;
+    });
+    if (convertedFromImg && convertedFromImg.size > 0) {
+      showToast(`✨ iPhone HEIC photo converted to JPEG!`, 'success');
+      return new File([convertedFromImg], cleanName, { type: 'image/jpeg', lastModified: file.lastModified || Date.now() });
+    }
+  } catch (imgErr) {
+    // image fallback not supported
   }
 
   throw new Error(`Could not decode iPhone HEIC photo (${file.name}). If your iPhone uses Apple ProRAW/HDR, you can also share as JPG or open in Safari for native instant decoding.`);
@@ -1138,8 +1192,12 @@ async function processSingleFile(file) {
 
     if (downloadPhotoFileBtn) downloadPhotoFileBtn.disabled = false;
     if (downloadJsonFileBtn) downloadJsonFileBtn.disabled = false;
-    clearInlineFeedback();
-    updateJsonSnippetPreview();
+    try {
+      clearInlineFeedback();
+      updateJsonSnippetPreview();
+    } catch (uiErr) {
+      console.warn('Non-critical UI update issue:', uiErr);
+    }
   } catch (error) {
     console.error('Image processing failed:', error);
     resetDropzone();
@@ -1207,11 +1265,15 @@ async function processBatchFiles(files) {
     previewInfo.textContent = `Batch of ${batchQueue.length} photos ready for review`;
     dropzoneEmpty.hidden = true;
     dropzonePreview.hidden = false;
-    clearInlineFeedback();
-    renderBatchQueue();
-    if (downloadPhotoFileBtn) downloadPhotoFileBtn.disabled = false;
-    if (downloadJsonFileBtn) downloadJsonFileBtn.disabled = false;
-    updateJsonSnippetPreview();
+    try {
+      clearInlineFeedback();
+      renderBatchQueue();
+      if (downloadPhotoFileBtn) downloadPhotoFileBtn.disabled = false;
+      if (downloadJsonFileBtn) downloadJsonFileBtn.disabled = false;
+      updateJsonSnippetPreview();
+    } catch (uiErr) {
+      console.warn('Non-critical batch UI update issue:', uiErr);
+    }
     showToast(`Loaded ${batchQueue.length} photos into the batch queue!`, 'success');
   } else {
     resetDropzone();

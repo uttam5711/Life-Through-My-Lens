@@ -31,7 +31,7 @@
   </script>
 
   <meta name="theme-color" content="#0f172a">
-  <link rel="stylesheet" href="css/styles.css?v=20261026_heic_fix">
+  <link rel="stylesheet" href="css/styles.css?v=20261027_permanent_heic">
 
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -1373,12 +1373,12 @@
     window.GALLERY_SHEET_URL = '';
   </script>
 
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/heic-to/dist/iife/heic-to.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
-  <script type="module" src="js/gallery.js?v=20261026_modern_heic"></script>
-  <script type="module" src="js/uploader.js?v=20261026_modern_heic"></script>
-  <script type="module" src="js/cursor.js?v=20261026_modern_heic"></script>
+  <!-- Scripts: Local decoders guarantee permanent offline/firewall-safe HEIC support with CDN fallback -->
+  <script src="js/vendor/heic-to.js"></script>
+  <script src="js/vendor/heic2any.min.js"></script>
+  <script type="module" src="js/gallery.js?v=20261027_permanent_heic"></script>
+  <script type="module" src="js/uploader.js?v=20261027_permanent_heic"></script>
+  <script type="module" src="js/cursor.js?v=20261027_permanent_heic"></script>
 </body>
 </html>
 
