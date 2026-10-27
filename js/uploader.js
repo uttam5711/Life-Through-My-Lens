@@ -16,7 +16,7 @@ import {
   getLocalPhotos,
   removeLocalPhoto,
   updatePhotoCard
-} from './gallery.js?v=20261027_permanent_heic';
+} from './gallery.js?v=20261027_conflict_retry';
 
 // ==========================================================
 // DOM ELEMENTS
@@ -2128,26 +2128,7 @@ async function saveMetadataToGitHub() {
   if (editMetaStatusMsg) editMetaStatusMsg.textContent = 'Saving changes to GitHub repository...';
   if (editSaveGhBtn) editSaveGhBtn.disabled = true;
 
-  try {
-    // 1. Fetch current data/photos.json to get remote array and sha
-    const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
-    const jsonGetRes = await fetch(jsonApiUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    if (!jsonGetRes.ok) {
-      throw new Error(`Failed to fetch photos.json from GitHub (${jsonGetRes.status})`);
-    }
-
-    const getResult = await jsonGetRes.json();
-    const fileSha = getResult.sha;
-    const decoded = base64ToUtf8(getResult.content);
-    const remoteCatalog = JSON.parse(decoded);
-
-    // 2. Find and update the photo object in the catalog
+    // If photo was re-cropped or film filtered in studio, commit updated image file
     if (activePhotoBeingEdited.thumbnail && activePhotoBeingEdited.thumbnail.startsWith('data:image/')) {
       updated.thumbnail = activePhotoBeingEdited.thumbnail;
     }
@@ -2155,7 +2136,6 @@ async function saveMetadataToGitHub() {
     if (activePhotoBeingEdited.preset) updated.preset = activePhotoBeingEdited.preset;
     if (activePhotoBeingEdited.grain) updated.grain = activePhotoBeingEdited.grain;
 
-    // If photo was re-cropped or film filtered in studio, commit updated image file
     if (activePhotoBeingEdited.editedBase64 && activePhotoBeingEdited.url && activePhotoBeingEdited.url.startsWith('images/')) {
       if (editMetaStatusMsg) editMetaStatusMsg.textContent = 'Uploading cropped & filtered photo to GitHub...';
       try {
@@ -2187,48 +2167,31 @@ async function saveMetadataToGitHub() {
       }
     }
 
-    let matched = false;
-    for (let i = 0; i < remoteCatalog.length; i++) {
-      if (remoteCatalog[i].id === activePhotoBeingEdited.id || remoteCatalog[i].url === activePhotoBeingEdited.url) {
-        Object.assign(remoteCatalog[i], updated);
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      // Prepend if not found
-      remoteCatalog.unshift({
-        ...activePhotoBeingEdited,
-        ...updated
-      });
-    }
-
-    // 3. Commit updated photos.json to GitHub
-    const updatedJsonString = JSON.stringify(remoteCatalog, null, 2);
-    const updatedBase64 = utf8ToBase64(updatedJsonString);
-
-    const updatePayload = {
-      message: `Update photo details: "${updated.title}"`,
-      content: updatedBase64,
-      sha: fileSha,
-      branch: branch
-    };
-
-    const jsonPutRes = await fetch(jsonApiUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': getAuthHeader(token),
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
+    // Commit updated photos.json to GitHub with automatic 409 conflict retry
+    await syncPhotosJsonToGitHub(
+      owner,
+      repo,
+      branch,
+      token,
+      (remoteCatalog) => {
+        let matched = false;
+        for (let i = 0; i < remoteCatalog.length; i++) {
+          if (remoteCatalog[i].id === activePhotoBeingEdited.id || remoteCatalog[i].url === activePhotoBeingEdited.url) {
+            Object.assign(remoteCatalog[i], updated);
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          remoteCatalog.unshift({
+            ...activePhotoBeingEdited,
+            ...updated
+          });
+        }
+        return remoteCatalog;
       },
-      body: JSON.stringify(updatePayload)
-    });
-
-    if (!jsonPutRes.ok) {
-      const err = await jsonPutRes.json().catch(() => ({}));
-      throw new Error(`GitHub commit failed: ${err.message || jsonPutRes.statusText}`);
-    }
+      `Update photo details: "${updated.title}"`
+    );
 
     // 4. Update in-memory state, persist locally, and update card in-place
     const localTarget = state.allPhotos.find(p => p.id === activePhotoBeingEdited.id || p.url === activePhotoBeingEdited.url);
@@ -2257,6 +2220,113 @@ async function saveMetadataToGitHub() {
 // ==========================================================
 // GITHUB DIRECT COMMIT FLOWS
 // ==========================================================
+
+/**
+ * Safely commit changes to data/photos.json on GitHub with automatic 409 conflict resolution and retry
+ */
+async function syncPhotosJsonToGitHub(owner, repo, branch, token, transformCatalogFn, commitMessage, maxRetries = 5) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // 1. Fetch the latest photos.json with aggressive cache-busting
+      const timestamp = Date.now();
+      const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${encodeURIComponent(branch)}&_ts=${timestamp}_${attempt}`;
+
+      const getRes = await fetch(getUrl, {
+        headers: {
+          'Authorization': getAuthHeader(token),
+          'Accept': 'application/vnd.github.v3+json',
+          'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+
+      let currentJsonData = [];
+      let fileSha = null;
+
+      if (getRes.ok) {
+        const getResult = await getRes.json();
+        fileSha = getResult.sha;
+        try {
+          const decoded = base64ToUtf8(getResult.content);
+          currentJsonData = JSON.parse(decoded);
+          if (!Array.isArray(currentJsonData)) currentJsonData = [];
+        } catch (e) {
+          console.warn('Could not parse remote photos.json, fallback to in-memory state', e);
+          currentJsonData = [...state.allPhotos];
+        }
+      } else if (getRes.status === 404) {
+        currentJsonData = [];
+        fileSha = null;
+      } else {
+        const err = await getRes.json().catch(() => ({}));
+        throw new Error(`Failed to fetch photos.json: ${err.message || getRes.statusText}`);
+      }
+
+      // 2. Apply catalog transformation
+      const updatedCatalog = transformCatalogFn(currentJsonData);
+      const updatedJsonString = JSON.stringify(updatedCatalog, null, 2);
+      const updatedBase64 = utf8ToBase64(updatedJsonString);
+
+      const putPayload = {
+        message: commitMessage,
+        content: updatedBase64,
+        branch: branch
+      };
+      if (fileSha) {
+        putPayload.sha = fileSha;
+      }
+
+      // 3. Put to GitHub Contents API
+      const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json`;
+      const putRes = await fetch(putUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': getAuthHeader(token),
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github.v3+json'
+        },
+        body: JSON.stringify(putPayload)
+      });
+
+      if (putRes.ok) {
+        return updatedCatalog;
+      }
+
+      const errData = await putRes.json().catch(() => ({}));
+      const isConflict = putRes.status === 409 || putRes.status === 422 ||
+        (errData.message && errData.message.toLowerCase().includes('conflict')) ||
+        (errData.message && errData.message.toLowerCase().includes('sha'));
+
+      if (isConflict && attempt < maxRetries) {
+        console.warn(`GitHub 409 Conflict updating photos.json (attempt ${attempt}/${maxRetries}). Retrying with fresh SHA...`);
+        setUploadLoading(true, `Resolving GitHub branch sync (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 500 * attempt));
+        continue;
+      }
+
+      let msg = errData.message || putRes.statusText;
+      if (putRes.status === 409) {
+        msg = 'Conflict updating photos.json (409). Please try again in a few seconds.';
+      }
+      throw new Error(`Failed to update photos.json: ${msg}`);
+
+    } catch (err) {
+      lastError = err;
+      const isConflict = err.message && (err.message.includes('409') || err.message.toLowerCase().includes('conflict'));
+      if (isConflict && attempt < maxRetries) {
+        console.warn(`Retryable error on attempt ${attempt}:`, err);
+        setUploadLoading(true, `Resolving GitHub branch sync (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 500 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error('Failed to update photos.json after multiple attempts');
+}
 
 /**
  * Perform single photo upload via GitHub REST API
@@ -2299,67 +2369,21 @@ async function performSingleGitHubUpload(owner, repo, branch, token) {
 
     setUploadLoading(true, '2/2 Updating data/photos.json on GitHub...');
 
-    // 2. Fetch existing data/photos.json
-    const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
-    const jsonGetRes = await fetch(jsonApiUrl, {
-      headers: {
-        'Authorization': getAuthHeader(token),
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    let currentJsonData = [];
-    let fileSha = null;
-
-    if (jsonGetRes.ok) {
-      const getResult = await jsonGetRes.json();
-      fileSha = getResult.sha;
-      try {
-        const decoded = base64ToUtf8(getResult.content);
-        currentJsonData = JSON.parse(decoded);
-      } catch (e) {
-        currentJsonData = [...state.allPhotos];
-      }
-    } else {
-      currentJsonData = [...state.allPhotos];
-    }
-
-    // 3. Prepend newly uploaded photo
+    // 2. Prepend newly uploaded photo with automatic 409 conflict resolution
     const newPhoto = buildPhotoObject();
-    const updatedList = [newPhoto, ...currentJsonData];
-
-    const updatedJsonString = JSON.stringify(updatedList, null, 2);
-    const updatedBase64 = utf8ToBase64(updatedJsonString);
-
-    const updateJsonPayload = {
-      message: `Update photos.json: Added "${newPhoto.title}"`,
-      content: updatedBase64,
-      branch: branch
-    };
-    if (fileSha) {
-      updateJsonPayload.sha = fileSha;
-    }
-
-    const jsonPutRes = await fetch(jsonApiUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': getAuthHeader(token),
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
+    await syncPhotosJsonToGitHub(
+      owner,
+      repo,
+      branch,
+      token,
+      (currentList) => {
+        const filtered = currentList.filter(p => p.id !== newPhoto.id);
+        return [newPhoto, ...filtered];
       },
-      body: JSON.stringify(updateJsonPayload)
-    });
+      `Update photos.json: Added "${newPhoto.title}"`
+    );
 
-    if (!jsonPutRes.ok) {
-      const err = await jsonPutRes.json().catch(() => ({}));
-      let msg = err.message || jsonPutRes.statusText;
-      if (jsonPutRes.status === 409) {
-        msg = 'Conflict updating photos.json (409). Please try again.';
-      }
-      throw new Error(`Failed to update photos.json: ${msg}`);
-    }
-
-    // 4. Update in-memory local gallery immediately and save local backup
+    // 3. Update in-memory local gallery immediately and save local backup
     const livePhoto = { ...newPhoto, url: currentProcessedImage.previewUrl, thumbnail: currentProcessedImage.previewUrl };
     saveLocalPhoto(livePhoto);
     state.allPhotos.unshift(livePhoto);
@@ -2420,65 +2444,24 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
       }
     }
 
-    // 2. Fetch existing data/photos.json
+    // 2. Prepend all newly uploaded batch photos with automatic 409 conflict resolution
     setUploadLoading(true, `Updating data/photos.json on GitHub...`);
 
-    const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
-    const jsonGetRes = await fetch(jsonApiUrl, {
-      headers: {
-        'Authorization': getAuthHeader(token),
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    let currentJsonData = [];
-    let fileSha = null;
-
-    if (jsonGetRes.ok) {
-      const getResult = await jsonGetRes.json();
-      fileSha = getResult.sha;
-      try {
-        const decoded = base64ToUtf8(getResult.content);
-        currentJsonData = JSON.parse(decoded);
-      } catch (e) {
-        currentJsonData = [...state.allPhotos];
-      }
-    } else {
-      currentJsonData = [...state.allPhotos];
-    }
-
-    // 3. Prepend all newly uploaded batch photos
     const newPhotos = batchQueue.map(item => buildPhotoObjectFromBatchItem(item));
-    const updatedList = [...newPhotos, ...currentJsonData];
-
-    const updatedJsonString = JSON.stringify(updatedList, null, 2);
-    const updatedBase64 = utf8ToBase64(updatedJsonString);
-
-    const updateJsonPayload = {
-      message: `Batch upload: Added ${total} photos (${new Date().toLocaleDateString()})`,
-      content: updatedBase64,
-      branch: branch
-    };
-    if (fileSha) {
-      updateJsonPayload.sha = fileSha;
-    }
-
-    const jsonPutRes = await fetch(jsonApiUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': getAuthHeader(token),
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
+    await syncPhotosJsonToGitHub(
+      owner,
+      repo,
+      branch,
+      token,
+      (currentList) => {
+        const newIds = new Set(newPhotos.map(p => p.id));
+        const filtered = currentList.filter(p => !newIds.has(p.id));
+        return [...newPhotos, ...filtered];
       },
-      body: JSON.stringify(updateJsonPayload)
-    });
+      `Batch upload: Added ${total} photos (${new Date().toLocaleDateString()})`
+    );
 
-    if (!jsonPutRes.ok) {
-      const err = await jsonPutRes.json().catch(() => ({}));
-      throw new Error(`Failed to update photos.json: ${err.message || jsonPutRes.statusText}`);
-    }
-
-    // 4. Update in-memory local gallery with live preview URLs for instant view & local persistence
+    // 3. Update in-memory local gallery with live preview URLs for instant view & local persistence
     const liveBatchPhotos = batchQueue.map((item, idx) => {
       const p = {
         ...newPhotos[idx],
@@ -2488,16 +2471,17 @@ async function performBatchGitHubUpload(owner, repo, branch, token) {
       saveLocalPhoto(p);
       return p;
     });
+
     state.allPhotos.unshift(...liveBatchPhotos);
     applyFilters();
 
     setUploadLoading(false);
     closeModal(uploadDialog);
     resetDropzone();
-    showToast(`🎉 Successfully uploaded & committed ${total} photos to GitHub!`, 'success');
+    showToast(`🎉 Batch of ${total} photos uploaded & committed to GitHub!`, 'success');
 
   } catch (error) {
-    console.error('Batch upload error:', error);
+    console.error('Batch upload to GitHub failed:', error);
     setUploadLoading(false);
     showInlineFeedback(error.message, 'error');
     showToast(error.message, 'error');
@@ -2974,49 +2958,16 @@ function setupDeletePhotoFlow() {
       const token = localStorage.getItem('gh_gallery_token') || '';
 
       if (token) {
-        const jsonApiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/photos.json?ref=${branch}`;
-        const jsonGetRes = await fetch(jsonApiUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json'
-          }
-        });
-
-        if (!jsonGetRes.ok) {
-          throw new Error(`Failed to read photos.json from GitHub (${jsonGetRes.status})`);
-        }
-
-        const getResult = await jsonGetRes.json();
-        const fileSha = getResult.sha;
-        const decoded = base64ToUtf8(getResult.content);
-        const currentList = JSON.parse(decoded);
-
-        const updatedList = currentList.filter(p => p.id !== photo.id && p.url !== photo.url);
-
-        const updatedJsonString = JSON.stringify(updatedList, null, 2);
-        const updatedBase64 = utf8ToBase64(updatedJsonString);
-
-        const updateJsonPayload = {
-          message: `Delete photo: "${photo.title || photo.id}"`,
-          content: updatedBase64,
-          sha: fileSha,
-          branch: branch
-        };
-
-        const jsonPutRes = await fetch(jsonApiUrl, {
-          method: 'PUT',
-          headers: {
-            'Authorization': getAuthHeader(token),
-            'Content-Type': 'application/json',
-            'Accept': 'application/vnd.github.v3+json'
-          },
-          body: JSON.stringify(updateJsonPayload)
-        });
-
-        if (!jsonPutRes.ok) {
-          const err = await jsonPutRes.json().catch(() => ({}));
-          throw new Error(`Failed to update photos.json: ${err.message || jsonPutRes.statusText}`);
-        }
+        // Commit deletion to photos.json on GitHub with automatic 409 conflict retry
+        await syncPhotosJsonToGitHub(
+          owner,
+          repo,
+          branch,
+          token,
+          (currentList) => currentList.filter(p => p.id !== photo.id && p.url !== photo.url),
+          `Delete photo: "${photo.title || photo.id}"`
+        );
+      }
 
         if (photo.url && photo.url.startsWith('images/')) {
           try {
